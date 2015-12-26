@@ -7,16 +7,24 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Tests {
 	[TestClass]
 	public class BasicTests {
-		struct Foo {
-			Boolean a;
-			String b;
-			public Int64 Count { get; private set; }
+		struct Foo : IEquatable<Foo> {
+			public Boolean a;
+			public String b;
+			public Int64 Count { get; set; }
 
 			public Foo(Boolean x) {
-				a = true;
+				a = x;
 				b = "Test";
 				Count = 42;
 			}
+
+			public Boolean Equals(Foo o) {
+				return a == o.a
+					&& b == o.b
+					&& Count == o.Count;
+			}
+
+			public override Boolean Equals(Object obj) => Equals((Foo)obj);
 
 			public override Int32 GetHashCode() {
 				unchecked {
@@ -50,15 +58,25 @@ namespace Tests {
 		}
 
 		[TestMethod]
-		public void TestStruct() {
+		public void TestStructHashCode() {
 			var foo = new Foo(true);
 			Assert.AreEqual(foo.GetHashCode(), foo.GetStructHashCode());
 		}
 
 		[TestMethod]
-		public void TestClass() {
+		public void TestClassHashCode() {
 			var bar = new Bar { Foo = new Foo(true), Text = "Testing" };
 			Assert.AreEqual(bar.GetHashCode(), bar.GetClassHashCode());
+		}
+
+		[TestMethod]
+		public void TestStructEquals() {
+			var foo = new Foo(true);
+			var foo2 = new Foo(false);
+			Assert.IsTrue(foo.Equals(foo));
+			Assert.IsTrue(!foo.Equals(foo2));
+			Assert.IsTrue(foo.StructEquals(foo));
+			Assert.IsTrue(!foo.StructEquals(foo2));
 		}
 	}
 }

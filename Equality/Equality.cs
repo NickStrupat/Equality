@@ -101,19 +101,10 @@ namespace Equality {
 		private static void GenerateEqualsIL<T>(Type type, ILGenerator ilGenerator, FieldInfo[] fields, PropertyInfo[] properties) {
 			var retFalse = ilGenerator.DefineLabel();
 
-			for (var i = 0; i < fields.Length; i++) {
-				var field = fields[i];
-
-				ilGenerator.Emit(OpCodes.Ldarg_0);
-				ilGenerator.Emit(OpCodes.Ldfld, field);
-				ilGenerator.Emit(OpCodes.Ldarg_1);
-				ilGenerator.Emit(OpCodes.Ldfld, field);
-
-				ilGenerator.Emit(OpCodes.Bne_Un_S, retFalse);
-			}
-			foreach (var property in properties) {
-
-			}
+			foreach (var field in fields)
+				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Ldfld, field), retFalse, field.FieldType);
+			foreach (var property in properties)
+				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic:true)), retFalse, property.PropertyType);
 
 			ilGenerator.Emit(OpCodes.Ldc_I4_1);
 			ilGenerator.Emit(OpCodes.Ret);
@@ -121,6 +112,20 @@ namespace Equality {
 			ilGenerator.MarkLabel(retFalse);
 			ilGenerator.Emit(OpCodes.Ldc_I4_0);
 			ilGenerator.Emit(OpCodes.Ret);
+		}
+
+		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator, Action<ILGenerator> emitLoadMember, Label retFalse, Type memberType) {
+			ilGenerator.Emit(OpCodes.Ldarg_0);
+			emitLoadMember(ilGenerator);
+			ilGenerator.Emit(OpCodes.Ldarg_1);
+			emitLoadMember(ilGenerator);
+
+			if (memberType.IsPrimitive)
+				ilGenerator.Emit(OpCodes.Bne_Un_S, retFalse);
+			else {
+				ilGenerator.Emit(OpCodes.Call, memberType.GetMethod("op_Equality", BindingFlags.Public | BindingFlags.Static));
+				ilGenerator.Emit(OpCodes.Brfalse_S, retFalse);
+			}
 		}
 
 		private static Func<T, Int32> GetHashCodeFunc<T>(Type type) {
