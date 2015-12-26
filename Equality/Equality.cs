@@ -81,7 +81,7 @@ namespace Equality {
 			return fields.Except(backingFieldsOfExcludedAutoProperties).ToArray();
 		}
 
-		private static PropertyInfo[] GetProprties(Type type) {
+		private static PropertyInfo[] GetProperties(Type type) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
 					   .Where(x => x.IsDefined(typeof(IncludePropertyAttribute), inherit: true))
 					   .ToArray();
@@ -92,7 +92,7 @@ namespace Equality {
 			var ilGenerator = dynamicMethod.GetILGenerator();
 
 			var fields = GetFields(type);
-			var properties = GetProprties(type);
+			var properties = GetProperties(type);
 			GenerateEqualsIL<T>(type, ilGenerator, fields, properties);
 
 			return (Func<T, T, Boolean>) dynamicMethod.CreateDelegate(typeof(Func<T, T, Boolean>));
@@ -128,7 +128,7 @@ namespace Equality {
 			var ilGenerator = dynamicMethod.GetILGenerator();
 
 			var fields = GetFields(type);
-			var properties = GetProprties(type);
+			var properties = GetProperties(type);
 			GenerateHashCodeIL<T>(type, ilGenerator, fields, properties);
 
 			return (Func<T, Int32>) dynamicMethod.CreateDelegate(typeof(Func<T, Int32>));
