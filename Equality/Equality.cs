@@ -17,7 +17,7 @@ namespace Equality {
 		public class IncludePropertyAttribute : Attribute { }
 
 		private static FieldInfo GetBackingField(PropertyInfo pi) {
-			if (!pi.CanRead || !pi.GetGetMethod(nonPublic: true).IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
+			if (!pi.CanRead || !pi.GetGetMethod(nonPublic:true).IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
 				return null;
 			var backingField = pi.DeclaringType.GetField($"<{pi.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
 			if (backingField == null)
@@ -34,10 +34,14 @@ namespace Equality {
 			return GetHashCodeFuncCache<T>.Func(@object);
 		}
 
+		public static Int32 GetStructHashCode<T>(this T @object, ref Int32 hashCodeField) where T : struct => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetStructHashCode();
+
 		public static Int32 GetClassHashCode<T>(this T @object) where T : class {
 			var type = @object.GetType();
 			return type == typeof(T) ? GetHashCodeFuncCache<T>.Func(@object) : GetHashCodeClassTypeFuncCache.GetOrAdd(type, GetHashCodeFunc<Object>).Invoke(@object);
 		}
+
+		public static Int32 GetClassHashCode<T>(this T @object, ref Int32 hashCodeField) where T : class => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetClassHashCode();
 
 		private static class EqualsFuncCache<T> { public static readonly Func<T, T, Boolean> Func = GetEqualsFunc<T>(typeof(T)); }
 		private static readonly ConcurrentDictionary<Type, Func<Object, Object, Boolean>> EqualsClassTypeFuncCache = new ConcurrentDictionary<Type, Func<Object, Object, Boolean>>();
