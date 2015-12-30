@@ -34,14 +34,14 @@ namespace Equality {
 			return GetHashCodeFuncCache<T>.Func(@object);
 		}
 
-		public static Int32 GetStructHashCode<T>(this T @object, ref Int32 hashCodeField) where T : struct => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetStructHashCode();
+		//public static Int32 GetStructHashCode<T>(this T @object, ref Int32 hashCodeField) where T : struct => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetStructHashCode();
 
 		public static Int32 GetClassHashCode<T>(this T @object) where T : class {
 			var type = @object.GetType();
 			return type == typeof(T) ? GetHashCodeFuncCache<T>.Func(@object) : GetHashCodeClassTypeFuncCache.GetOrAdd(type, GetHashCodeFunc<Object>).Invoke(@object);
 		}
 
-		public static Int32 GetClassHashCode<T>(this T @object, ref Int32 hashCodeField) where T : class => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetClassHashCode();
+		//public static Int32 GetClassHashCode<T>(this T @object, ref Int32 hashCodeField) where T : class => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetClassHashCode();
 
 		private static class EqualsFuncCache<T> { public static readonly Func<T, T, Boolean> Func = GetEqualsFunc<T>(typeof(T)); }
 		private static readonly ConcurrentDictionary<Type, Func<Object, Object, Boolean>> EqualsClassTypeFuncCache = new ConcurrentDictionary<Type, Func<Object, Object, Boolean>>();
@@ -65,7 +65,8 @@ namespace Equality {
 			var yType = y.GetType();
 			if (xType != yType)
 				return false;
-			return xType == typeof(T) ? EqualsFuncCache<T>.Func(x, y) : EqualsClassTypeFuncCache.GetOrAdd(xType, GetEqualsFunc<Object>).Invoke(x, y);
+			var func = xType == typeof(T) ? EqualsFuncCache<T>.Func : EqualsClassTypeFuncCache.GetOrAdd(xType, GetEqualsFunc<Object>);
+			return func(x, y);
 		}
 
 		public static Boolean ClassEquals<T>(this T x, T y) where T : class, IEquatable<T> => ClassEqualsInternal(x, y);
@@ -99,33 +100,39 @@ namespace Equality {
 		}
 
 		private static void GenerateEqualsIL<T>(Type type, ILGenerator ilGenerator, FieldInfo[] fields, PropertyInfo[] properties) {
-			var retFalse = ilGenerator.DefineLabel();
+			var retTrue = ilGenerator.DefineLabel();
 
 			foreach (var field in fields)
-				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Ldfld, field), retFalse, field.FieldType);
+				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Ldfld, field), retTrue, field.FieldType);
 			foreach (var property in properties)
-				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic:true)), retFalse, property.PropertyType);
-
+				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic:true)), retTrue, property.PropertyType);
+			
+			ilGenerator.MarkLabel(retTrue);
 			ilGenerator.Emit(OpCodes.Ldc_I4_1);
-			ilGenerator.Emit(OpCodes.Ret);
-
-			ilGenerator.MarkLabel(retFalse);
-			ilGenerator.Emit(OpCodes.Ldc_I4_0);
 			ilGenerator.Emit(OpCodes.Ret);
 		}
 
-		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator, Action<ILGenerator> emitLoadMember, Label retFalse, Type memberType) {
+		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator, Action<ILGenerator> emitLoadMember, Label retTrue, Type memberType) {
 			ilGenerator.Emit(OpCodes.Ldarg_0);
 			emitLoadMember(ilGenerator);
 			ilGenerator.Emit(OpCodes.Ldarg_1);
 			emitLoadMember(ilGenerator);
 
 			if (memberType.IsPrimitive)
-				ilGenerator.Emit(OpCodes.Bne_Un_S, retFalse);
+				ilGenerator.Emit(OpCodes.Beq, retTrue);
 			else {
-				ilGenerator.Emit(OpCodes.Call, memberType.GetMethod("op_Equality", BindingFlags.Public | BindingFlags.Static));
-				ilGenerator.Emit(OpCodes.Brfalse_S, retFalse);
+				MethodInfo opEquality;
+				if (typeof (IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType))
+					ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] { memberType }));
+				else if ((opEquality = memberType.GetMethod("op_Equality", new[] { memberType, memberType })) != null)
+					ilGenerator.Emit(OpCodes.Call, opEquality);
+				else
+					ilGenerator.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] { typeof(Object) }));
+				ilGenerator.Emit(OpCodes.Brtrue, retTrue);
 			}
+
+			ilGenerator.Emit(OpCodes.Ldc_I4_0);
+			ilGenerator.Emit(OpCodes.Ret);
 		}
 
 		private static Func<T, Int32> GetHashCodeFunc<T>(Type type) {
