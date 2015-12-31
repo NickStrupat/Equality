@@ -60,11 +60,25 @@ namespace Equality {
 
 		private static PropertyInfo[] GetProperties(Type type) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-					   .Where(x => x.IsDefined(typeof(IncludePropertyAttribute), inherit: true))
-					   .ToArray();
+			           .Where(x => x.IsDefined(typeof(IncludePropertyAttribute), inherit: true))
+			           .ToArray();
 		}
 
 		private static Func<T, T, Boolean> GetEqualsFunc<T>(Type type) {
+
+			////////////////////
+			//var assemblyName = new AssemblyName("SomeName");
+			//var assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave, @"c:");
+			//var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");
+
+			//TypeBuilder builder = moduleBuilder.DefineType("Test", TypeAttributes.Public);
+			//var methodBuilder = builder.DefineMethod("DynamicCreate", MethodAttributes.Public, typeof(Boolean), new[] { typeof(T), typeof(T) });
+			///* this line is a replacement for your  new DynamicMethod(....)  line of code
+
+			///* GENERATE YOUR IL CODE HERE */
+			//var ilGenerator = methodBuilder.GetILGenerator();
+			///////////////////
+
 			var dynamicMethod = new DynamicMethod(String.Empty, typeof(Boolean), new[] { typeof(T), typeof(T) }, typeof(T).Module, skipVisibility: true);
 			var ilGenerator = dynamicMethod.GetILGenerator();
 
@@ -72,39 +86,61 @@ namespace Equality {
 			var properties = GetProperties(type);
 			GenerateEqualsIL<T>(type, ilGenerator, fields, properties);
 
+			/////////////////////
+			//var t = builder.CreateType();
+			//assemblyBuilder.Save(assemblyName.Name + ".dll");
+			//return null;
+			///////////////////
+
 			return (Func<T, T, Boolean>) dynamicMethod.CreateDelegate(typeof(Func<T, T, Boolean>));
 		}
 
 		private static void GenerateEqualsIL<T>(Type type, ILGenerator ilGenerator, FieldInfo[] fields, PropertyInfo[] properties) {
-			Action<ILGenerator> loadInstanceOpCode = i => i.Emit(OpCodes.Ldarg_0);
+			Action<ILGenerator> loadFirstInstance = i => i.Emit(OpCodes.Ldarg_0);
 			if (typeof(T) != type) {
 				var instanceLocal = ilGenerator.DeclareLocal(type);
-				loadInstanceOpCode = i => i.Emit(OpCodes.Ldloc, instanceLocal);
+				loadFirstInstance = i => i.Emit(OpCodes.Ldloc, instanceLocal);
 				ilGenerator.Emit(OpCodes.Ldarg_0);
 				ilGenerator.Emit(OpCodes.Castclass, type);
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
+			Action<ILGenerator> loadSecondInstance = i => i.Emit(OpCodes.Ldarg_1);
+			if (typeof(T) != type) {
+				var instanceLocal = ilGenerator.DeclareLocal(type);
+				loadSecondInstance = i => i.Emit(OpCodes.Ldloc, instanceLocal);
+				ilGenerator.Emit(OpCodes.Ldarg_1);
+				ilGenerator.Emit(OpCodes.Castclass, type);
+				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
+			}
 
-			var retTrue = ilGenerator.DefineLabel();
+			var retFalse = ilGenerator.DefineLabel();
 
 			foreach (var field in fields)
-				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Ldfld, field), retTrue, field.FieldType);
+				EmitMemberEqualityComparison(ilGenerator, loadFirstInstance, loadSecondInstance, ilg => ilg.Emit(field.FieldType.IsValueType && !field.FieldType.IsPrimitive ? OpCodes.Ldflda : OpCodes.Ldfld, field), retFalse, field.FieldType);
 			foreach (var property in properties)
-				EmitMemberEqualityComparison(ilGenerator, ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic:true)), retTrue, property.PropertyType);
-			
-			ilGenerator.MarkLabel(retTrue);
+				EmitMemberEqualityComparison(ilGenerator, loadFirstInstance, loadSecondInstance, ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic:true)), retFalse, property.PropertyType);
+
 			ilGenerator.Emit(OpCodes.Ldc_I4_1);
+			ilGenerator.Emit(OpCodes.Ret);
+			
+			ilGenerator.MarkLabel(retFalse);
+			ilGenerator.Emit(OpCodes.Ldc_I4_0);
 			ilGenerator.Emit(OpCodes.Ret);
 		}
 
-		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator, Action<ILGenerator> emitLoadMember, Label retTrue, Type memberType) {
-			ilGenerator.Emit(OpCodes.Ldarg_0);
+		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator,
+		                                                 Action<ILGenerator> loadFirstInstance,
+		                                                 Action<ILGenerator> loadSecondInstance,
+		                                                 Action<ILGenerator> emitLoadMember,
+		                                                 Label retFalse,
+		                                                 Type memberType) {
+			loadFirstInstance(ilGenerator);
 			emitLoadMember(ilGenerator);
-			ilGenerator.Emit(OpCodes.Ldarg_1);
+			loadSecondInstance(ilGenerator);
 			emitLoadMember(ilGenerator);
 
 			if (memberType.IsPrimitive)
-				ilGenerator.Emit(OpCodes.Beq, retTrue);
+				ilGenerator.Emit(OpCodes.Bne_Un, retFalse);
 			else {
 				MethodInfo opEquality;
 				if (typeof (IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType))
@@ -113,11 +149,8 @@ namespace Equality {
 					ilGenerator.Emit(OpCodes.Call, opEquality);
 				else
 					ilGenerator.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] { typeof(Object) }));
-				ilGenerator.Emit(OpCodes.Brtrue, retTrue);
+				ilGenerator.Emit(OpCodes.Brfalse, retFalse);
 			}
-
-			ilGenerator.Emit(OpCodes.Ldc_I4_0);
-			ilGenerator.Emit(OpCodes.Ret);
 		}
 
 		private static Func<T, Int32> GetHashCodeFunc<T>(Type type) {
