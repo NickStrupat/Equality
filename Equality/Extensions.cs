@@ -6,54 +6,17 @@ using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
 namespace Equality {
-	public static class Equality {
-		[AttributeUsage(AttributeTargets.Field)]
-		public class ExcludeFieldAttribute : Attribute { }
+	public static class Extensions {
+		public static Int32   GetStructHashCode<T>(this T @object)     where T : struct => GetHashCodeFuncCache<T>.Func(@object);
+		public static Int32   GetClassHashCode <T>(this T @object)     where T : class  => @object.GetClassHashCodeInternal(@object.GetType());
+		public static Boolean StructEquals     <T>(this T x, T y)      where T : struct => EqualsFuncCache<T>.Func(x, y);
+		public static Boolean ClassEquals      <T>(this T x, T y)      where T : class  => ClassEqualsInternal(x, y);
+		public static Boolean StructEquals     <T>(this T x, Object y) where T : struct => y != null && y.GetType() == typeof (T) && EqualsFuncCache<T>.Func(x, (T) y);
+		public static Boolean ClassEquals      <T>(this T x, Object y) where T : class  => ClassEqualsInternal(x, y as T);
 
-		[AttributeUsage(AttributeTargets.Property)]
-		public class ExcludeAutoPropertyAttribute : Attribute { }
-
-		[AttributeUsage(AttributeTargets.Property)]
-		public class IncludePropertyAttribute : Attribute { }
-
-		private static FieldInfo GetBackingField(PropertyInfo pi) {
-			if (!pi.CanRead || !pi.GetGetMethod(nonPublic:true).IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
-				return null;
-			var backingField = pi.DeclaringType.GetField($"<{pi.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
-			if (backingField == null)
-				return null;
-			if (!backingField.IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
-				return null;
-			return backingField;
-		}
-
-		private static class GetHashCodeFuncCache<T> { public static readonly Func<T, Int32> Func = GetHashCodeFunc<T>(typeof(T)); }
-		private static readonly ConcurrentDictionary<Type, Func<Object, Int32>> GetHashCodeClassTypeFuncCache = new ConcurrentDictionary<Type, Func<Object, Int32>>();
-
-		public static Int32 GetStructHashCode<T>(this T @object) where T : struct {
-			return GetHashCodeFuncCache<T>.Func(@object);
-		}
-
-		//public static Int32 GetStructHashCode<T>(this T @object, ref Int32 hashCodeField) where T : struct => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetStructHashCode();
-
-		public static Int32 GetClassHashCode<T>(this T @object) where T : class {
-			var type = @object.GetType();
-			return type == typeof(T) ? GetHashCodeFuncCache<T>.Func(@object) : GetHashCodeClassTypeFuncCache.GetOrAdd(type, GetHashCodeFunc<Object>).Invoke(@object);
-		}
-
-		//public static Int32 GetClassHashCode<T>(this T @object, ref Int32 hashCodeField) where T : class => hashCodeField != 0 ? hashCodeField : hashCodeField = @object.GetClassHashCode();
-
-		private static class EqualsFuncCache<T> { public static readonly Func<T, T, Boolean> Func = GetEqualsFunc<T>(typeof(T)); }
-		private static readonly ConcurrentDictionary<Type, Func<Object, Object, Boolean>> EqualsClassTypeFuncCache = new ConcurrentDictionary<Type, Func<Object, Object, Boolean>>();
-
-		public static Boolean StructEquals<T>(this T x, T y) where T : struct, IEquatable<T> {
-			return EqualsFuncCache<T>.Func(x, y);
-		}
-
-		public static Boolean StructEquals<T>(this T x, Object y) where T : struct {
-			if (y == null || y.GetType() != typeof(T))
-				return false;
-			return EqualsFuncCache<T>.Func(x, (T) y);
+		private static Int32 GetClassHashCodeInternal<T>(this T @object, Type type) where T : class {
+			var func = type == typeof(T) ? GetHashCodeFuncCache<T>.Func : GetHashCodeClassTypeFuncCache.GetOrAdd(type, GetHashCodeFunc<Object>);
+			return func(@object);
 		}
 
 		private static Boolean ClassEqualsInternal<T>(this T x, T y) where T : class {
@@ -69,9 +32,11 @@ namespace Equality {
 			return func(x, y);
 		}
 
-		public static Boolean ClassEquals<T>(this T x, T y) where T : class, IEquatable<T> => ClassEqualsInternal(x, y);
+		private static class GetHashCodeFuncCache<T> { public static readonly Func<T, Int32> Func = GetHashCodeFunc<T>(typeof(T)); }
+		private static readonly ConcurrentDictionary<Type, Func<Object, Int32>> GetHashCodeClassTypeFuncCache = new ConcurrentDictionary<Type, Func<Object, Int32>>();
 
-		public static Boolean ClassEquals<T>(this T x, Object y) where T : class => ClassEqualsInternal(x, y as T);
+		private static class EqualsFuncCache<T> { public static readonly Func<T, T, Boolean> Func = GetEqualsFunc<T>(typeof(T)); }
+		private static readonly ConcurrentDictionary<Type, Func<Object, Object, Boolean>> EqualsClassTypeFuncCache = new ConcurrentDictionary<Type, Func<Object, Object, Boolean>>();
 
 		private static FieldInfo[] GetFields(Type type) {
 			var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
@@ -80,6 +45,17 @@ namespace Equality {
 															.Select(GetBackingField)
 															.Where(x => x != null);
 			return fields.Except(backingFieldsOfExcludedAutoProperties).ToArray();
+		}
+
+		private static FieldInfo GetBackingField(PropertyInfo pi) {
+			if (!pi.CanRead || !pi.GetGetMethod(nonPublic:true).IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
+				return null;
+			var backingField = pi.DeclaringType?.GetField($"<{pi.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
+			if (backingField == null)
+				return null;
+			if (!backingField.IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
+				return null;
+			return backingField;
 		}
 
 		private static PropertyInfo[] GetProperties(Type type) {
@@ -100,6 +76,15 @@ namespace Equality {
 		}
 
 		private static void GenerateEqualsIL<T>(Type type, ILGenerator ilGenerator, FieldInfo[] fields, PropertyInfo[] properties) {
+			Action<ILGenerator> loadInstanceOpCode = i => i.Emit(OpCodes.Ldarg_0);
+			if (typeof(T) != type) {
+				var instanceLocal = ilGenerator.DeclareLocal(type);
+				loadInstanceOpCode = i => i.Emit(OpCodes.Ldloc, instanceLocal);
+				ilGenerator.Emit(OpCodes.Ldarg_0);
+				ilGenerator.Emit(OpCodes.Castclass, type);
+				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
+			}
+
 			var retTrue = ilGenerator.DefineLabel();
 
 			foreach (var field in fields)
@@ -183,15 +168,15 @@ namespace Equality {
 		}
 
 		private static void EmitHashCodeIL<T>(ILGenerator ilGenerator,
-									  Int32 prime,
-									  Func<Boolean> isValueType,
-									  Boolean isFirst,
-									  LocalBuilder hashCode,
-									  Action<ILGenerator> loadInstanceOpCode,
-									  Action loadValueTypeMember,
-									  Type memberType,
-									  Action loadReferenceTypeMember,
-									  MethodInfo objectGetHashCode) {
+		                                      Int32 prime,
+		                                      Func<Boolean> isValueType,
+		                                      Boolean isFirst,
+		                                      LocalBuilder hashCode,
+		                                      Action<ILGenerator> loadInstanceOpCode,
+		                                      Action loadValueTypeMember,
+		                                      Type memberType,
+		                                      Action loadReferenceTypeMember,
+		                                      MethodInfo objectGetHashCode) {
 			if (isValueType()) {
 				if (!isFirst) {
 					ilGenerator.Emit(OpCodes.Ldloc, hashCode);

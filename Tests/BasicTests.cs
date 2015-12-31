@@ -27,7 +27,7 @@ namespace Tests {
 					&& ((ReferenceEquals(Bar, null) && ReferenceEquals(o.Bar, null)) || (Bar != null && Bar.Equals(o.Bar)));
 			}
 
-			public override Boolean Equals(Object obj) => Equals((Foo)obj);
+			public override Boolean Equals(Object obj) => obj is Foo && Equals((Foo)obj);
 
 			public override Int32 GetHashCode() {
 				unchecked {
