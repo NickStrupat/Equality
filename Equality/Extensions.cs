@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -114,11 +115,11 @@ namespace Equality {
 			}
 
 			var retFalse = ilGenerator.DefineLabel();
-
+			var localMap = new ConcurrentDictionary<Type, LocalBuilder>();
 			foreach (var field in fields)
-				EmitMemberEqualityComparison(ilGenerator, loadFirstInstance, loadSecondInstance, ilg => ilg.Emit(field.FieldType.IsValueType && !field.FieldType.IsPrimitive ? OpCodes.Ldflda : OpCodes.Ldfld, field), retFalse, field.FieldType);
+				EmitMemberEqualityComparison(ilGenerator, localMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, retFalse);
 			foreach (var property in properties)
-				EmitMemberEqualityComparison(ilGenerator, loadFirstInstance, loadSecondInstance, ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic:true)), retFalse, property.PropertyType);
+				EmitMemberEqualityComparison(ilGenerator, localMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, retFalse);
 
 			ilGenerator.Emit(OpCodes.Ldc_I4_1);
 			ilGenerator.Emit(OpCodes.Ret);
@@ -129,28 +130,61 @@ namespace Equality {
 		}
 
 		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator,
-		                                                 Action<ILGenerator> loadFirstInstance,
+			                                             ConcurrentDictionary<Type, LocalBuilder> localMap,
+														 Action<ILGenerator> loadFirstInstance,
 		                                                 Action<ILGenerator> loadSecondInstance,
-		                                                 Action<ILGenerator> emitLoadMember,
-		                                                 Label retFalse,
-		                                                 Type memberType) {
-			loadFirstInstance(ilGenerator);
-			emitLoadMember(ilGenerator);
-			loadSecondInstance(ilGenerator);
-			emitLoadMember(ilGenerator);
-
+		                                                 MemberInfo memberInfo,
+		                                                 Type memberType,
+		                                                 Label retFalse) {
+			Action<ILGenerator> emitLoadFirstMember;
+			Action<ILGenerator> emitLoadSecondMember;
+			if (memberInfo is FieldInfo)
+				emitLoadFirstMember = emitLoadSecondMember = ilg => ilg.Emit(OpCodes.Ldfld, (FieldInfo) memberInfo);
+			else
+				emitLoadFirstMember = emitLoadSecondMember = ilg => ilg.Emit(OpCodes.Call, ((PropertyInfo) memberInfo).GetGetMethod(nonPublic: true));
+			
+			Action<ILGenerator> emitComparison;
 			if (memberType.IsPrimitive)
-				ilGenerator.Emit(OpCodes.Bne_Un, retFalse);
+				emitComparison = ilg => ilg.Emit(OpCodes.Bne_Un, retFalse);
 			else {
 				MethodInfo opEquality;
-				if (typeof (IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType))
-					ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] { memberType }));
-				else if ((opEquality = memberType.GetMethod("op_Equality", new[] { memberType, memberType })) != null)
-					ilGenerator.Emit(OpCodes.Call, opEquality);
-				else
-					ilGenerator.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] { typeof(Object) }));
-				ilGenerator.Emit(OpCodes.Brfalse, retFalse);
+				if (typeof(IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType)) {
+					if (memberType.IsValueType) {
+						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(localMap, memberInfo, memberType, emitLoadFirstMember);
+					}
+					emitComparison = ilg => ilg.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] {memberType}));
+				}
+				else if ((opEquality = memberType.GetMethod("op_Equality", new[] {memberType, memberType})) != null) {
+					emitComparison = ilg => ilg.Emit(OpCodes.Call, opEquality);
+				}
+				else {
+					if (memberType.IsValueType) {
+						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(localMap, memberInfo, memberType, emitLoadFirstMember);
+						loadSecondInstance = (Action<ILGenerator>)Delegate.Combine(loadSecondInstance, new Action<ILGenerator>(ilg => ilg.Emit(OpCodes.Box, memberType)));
+					}
+					emitComparison = ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof (Object)}));
+				}
+				emitComparison = (Action<ILGenerator>) Delegate.Combine(emitComparison, new Action<ILGenerator>(ilg => ilg.Emit(OpCodes.Brfalse, retFalse)));
 			}
+
+			loadFirstInstance(ilGenerator);
+			emitLoadFirstMember(ilGenerator);
+			loadSecondInstance(ilGenerator);
+			emitLoadSecondMember(ilGenerator);
+			emitComparison(ilGenerator);
+		}
+
+		private static Action<ILGenerator> SetEmitLoadFirstMemberForValueType(ConcurrentDictionary<Type, LocalBuilder> localMap, MemberInfo memberInfo, Type memberType, Action<ILGenerator> emitLoadFirstMember) {
+			if (memberInfo is FieldInfo)
+				emitLoadFirstMember = ilg => ilg.Emit(OpCodes.Ldflda, (FieldInfo) memberInfo);
+			else {
+				emitLoadFirstMember = ilg => {
+					                      var local = localMap.GetOrAdd(memberType, ilg.DeclareLocal);
+					                      ilg.Emit(OpCodes.Stloc, local);
+					                      ilg.Emit(OpCodes.Ldloca, local);
+				                      };
+			}
+			return emitLoadFirstMember;
 		}
 
 		private static Func<T, Int32> GetHashCodeFunc<T>(Type type) {
