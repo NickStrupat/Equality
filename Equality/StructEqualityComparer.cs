@@ -5,7 +5,10 @@ namespace Equality {
 	public struct StructEqualityComparer<T> : IEqualityComparer<T> where T : struct {
 		public static StructEqualityComparer<T> Default = new StructEqualityComparer<T>();
 
-		public Boolean Equals(T x, T y) => x.StructEquals(y);
-		public Int32 GetHashCode(T x) => x.GetStructHashCode();
+		public Boolean Equals(T x, T y) => Struct.Equals(ref x, ref y);
+		public Int32 GetHashCode(T x) => Struct.GetHashCode(ref x);
+
+		public Boolean Equals(ref T x, ref T y) => Struct.Equals(ref x, ref y);
+		public Int32 GetHashCode(ref T x) => Struct.GetHashCode(ref x);
 	}
 }

@@ -21,10 +21,12 @@ namespace Tests {
 			}
 
 			public Boolean Equals(Foo o) {
+				var bar = Bar;
+				var bar2 = o.Bar;
 				return a == o.a
 					&& b == o.b
 					&& Count == o.Count
-					&& ((ReferenceEquals(Bar, null) && ReferenceEquals(o.Bar, null)) || (Bar != null && Bar.Equals(o.Bar)));
+					&& ((ReferenceEquals(bar, null) && ReferenceEquals(bar2, null)) || (bar != null && bar.Equals(bar2)));
 			}
 
 			public override Boolean Equals(Object obj) => obj is Foo && Equals((Foo)obj);
@@ -104,13 +106,13 @@ namespace Tests {
 		[TestMethod]
 		public void TestStructHashCode() {
 			var foo = new Foo(true);
-			Assert.AreEqual(foo.GetHashCode(), foo.GetStructHashCode());
+			Assert.AreEqual(foo.GetHashCode(), Struct.GetHashCode(ref foo));
 		}
 
 		[TestMethod]
 		public void TestClassHashCode() {
 			var bar = new Bar { Foo = new Foo(true), Text = "Testing" };
-			Assert.AreEqual(bar.GetHashCode(), bar.GetClassHashCode());
+			Assert.AreEqual(bar.GetHashCode(), Class.GetHashCode(bar));
 		}
 
 		[TestMethod]
@@ -119,8 +121,8 @@ namespace Tests {
 			var foo2 = new Foo(false);
 			Assert.IsTrue(foo.Equals(foo));
 			Assert.IsTrue(!foo.Equals(foo2));
-			Assert.IsTrue(foo.StructEquals(foo));
-			Assert.IsTrue(!foo.StructEquals(foo2));
+			Assert.IsTrue(Struct.Equals(ref foo, ref foo));
+			Assert.IsTrue(!Struct.Equals(ref foo, ref foo2));
 		}
 
 		[TestMethod]
@@ -133,11 +135,11 @@ namespace Tests {
 			Assert.IsTrue(bar.Equals(bar2));
 			Assert.IsFalse(bar.Equals(bar3));
 			Assert.IsFalse(bar.Equals(bar4));
-			Assert.AreEqual(bar.Equals(bar), bar.ClassEquals(bar));
-			Assert.AreEqual(bar.Equals(bar), bar.ClassEquals(bar));
-			Assert.AreEqual(bar.Equals(bar2), bar.ClassEquals(bar2));
-			Assert.AreEqual(!bar.Equals(bar3), !bar.ClassEquals(bar3));
-			Assert.AreEqual(bar.Equals(bar4), bar.ClassEquals(bar4));
+			Assert.AreEqual(bar.Equals(bar),    Class.Equals(bar, bar));
+			Assert.AreEqual(bar.Equals(bar),    Class.Equals(bar, bar));
+			Assert.AreEqual(bar.Equals(bar2),   Class.Equals(bar, bar2));
+			Assert.AreEqual(!bar.Equals(bar3), !Class.Equals(bar, bar3));
+			Assert.AreEqual(bar.Equals(bar4),   Class.Equals(bar, bar4));
 
 			var baz = new Baz() { Yep = "Yep", Text = "Text" };
 			var baz2 = new Baz() { Yep = "Yep", Text = "Text" };
