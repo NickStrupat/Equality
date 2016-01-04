@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
 namespace Equality {
@@ -8,9 +9,9 @@ namespace Equality {
 		internal static FieldInfo[] GetFields(Type type) {
 			var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 			var backingFieldsOfExcludedAutoProperties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-															.Where(x => x.IsDefined(typeof(ExcludeAutoPropertyAttribute), inherit:true))
-															.Select(GetBackingField)
-															.Where(x => x != null);
+			                                                .Where(x => x.IsDefined(typeof(ExcludeAutoPropertyAttribute), inherit:true))
+			                                                .Select(GetBackingField)
+			                                                .Where(x => x != null);
 			return fields.Except(backingFieldsOfExcludedAutoProperties).ToArray();
 		}
 
@@ -30,5 +31,36 @@ namespace Equality {
 			           .Where(x => x.IsDefined(typeof(IncludePropertyAttribute), inherit: true))
 			           .ToArray();
 		}
+
+		internal static TDelegate GenerateIL<TDelegate>(Action<Type, ILGenerator> ilGeneration, Type type, [CallerMemberName] String methodName = null) where TDelegate : class {
+			if (!typeof(TDelegate).IsSubclassOf(typeof(MulticastDelegate)))
+				throw new ArgumentException(nameof(TDelegate));
+			var invokeMethodInfo = typeof(TDelegate).GetMethod(nameof(Action.Invoke));
+			var returnType = invokeMethodInfo.ReturnType;
+			var parameterTypes = invokeMethodInfo.GetParameters().Select(x => x.ParameterType).ToArray();
+
+#if DEBUG
+			var assemblyName = new AssemblyName("Debug.EqualityMethods");
+			var assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave, @"c:");
+			var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");
+
+			TypeBuilder builder = moduleBuilder.DefineType("EqualityMethods", TypeAttributes.Public);
+			var methodBuilder = builder.DefineMethod(methodName + "_" + type.Name, MethodAttributes.Public, returnType, parameterTypes);
+
+			var ilGenerator = methodBuilder.GetILGenerator();
+			ilGeneration(type, ilGenerator);
+
+			var t = builder.CreateType();
+			assemblyBuilder.Save(assemblyName.Name + ".dll");
+#else
+#endif
+
+			var dynamicMethod = new DynamicMethod(methodName, returnType, parameterTypes, typeof(Common).Module, skipVisibility: true);
+			ilGenerator = dynamicMethod.GetILGenerator();
+			ilGeneration(type, ilGenerator);
+			return dynamicMethod.CreateDelegate<TDelegate>();
+		}
+
+		internal static TDelegate CreateDelegate<TDelegate>(this DynamicMethod dm) where TDelegate : class => (TDelegate) (Object) dm.CreateDelegate(typeof (TDelegate));
 	}
 }

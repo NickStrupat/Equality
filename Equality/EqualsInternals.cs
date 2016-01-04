@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -14,38 +15,10 @@ namespace Equality {
 		internal static readonly ConcurrentDictionary<Type, Equals<Object>> DynamicCache = new ConcurrentDictionary<Type, Equals<Object>>();
 
 		internal static Equals<T> GetEqualsFunc<T>(Type type) {
-
-			////////////////////
-			//var assemblyName = new AssemblyName("SomeName");
-			//var assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave, @"c:");
-			//var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");
-
-			//TypeBuilder builder = moduleBuilder.DefineType("Test", TypeAttributes.Public);
-			//var methodBuilder = builder.DefineMethod("DynamicCreate", MethodAttributes.Public, typeof(Boolean), new[] { typeof(T).MakeByRefType(), typeof(T).MakeByRefType() });
-			///* this line is a replacement for your  new DynamicMethod(....)  line of code
-
-			///* GENERATE YOUR IL CODE HERE */
-			//var ilGenerator = methodBuilder.GetILGenerator();
-			///////////////////
-
-			var refOfTType = typeof (T).MakeByRefType();
-			var dynamicMethod = new DynamicMethod(String.Empty, typeof (Boolean), new[] {refOfTType, refOfTType}, typeof (T).Module, skipVisibility: true);
-			var ilGenerator = dynamicMethod.GetILGenerator();
-
-			var fields = Common.GetFields(type);
-			var properties = Common.GetProperties(type);
-			GenerateIL<T>(type, ilGenerator, fields, properties);
-
-			/////////////////////
-			//var t = builder.CreateType();
-			//assemblyBuilder.Save(assemblyName.Name + ".dll");
-			//return null;
-			///////////////////
-
-			return (Equals<T>) dynamicMethod.CreateDelegate(typeof (Equals<T>));
+			return Common.GenerateIL<Equals<T>>(GenerateIL<T>, type);
 		}
 
-		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator, FieldInfo[] fields, PropertyInfo[] properties) {
+		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator) {
 			Action<ILGenerator> loadFirstInstance = i => i.Emit(OpCodes.Ldarg_0);
 			if (typeof (T) != type) {
 				var instanceLocal = ilGenerator.DeclareLocal(type);
@@ -65,8 +38,12 @@ namespace Equality {
 
 			var retFalse = ilGenerator.DefineLabel();
 			var localMap = new ConcurrentDictionary<Type, LocalBuilder>();
+
+			var fields = Common.GetFields(type);
 			foreach (var field in fields)
 				EmitMemberEqualityComparison(ilGenerator, localMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, retFalse);
+
+			var properties = Common.GetProperties(type);
 			foreach (var property in properties)
 				EmitMemberEqualityComparison(ilGenerator, localMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, retFalse);
 
@@ -79,14 +56,14 @@ namespace Equality {
 		}
 
 		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator,
-			ConcurrentDictionary<Type, LocalBuilder> localMap,
-			Action<ILGenerator> loadFirstInstance,
-			Action<ILGenerator> loadSecondInstance,
-			MemberInfo memberInfo,
-			Type memberType,
-			Label retFalse) {
-			Action<ILGenerator> emitLoadFirstMember;
-			Action<ILGenerator> emitLoadSecondMember;
+		                                                 ConcurrentDictionary<Type, LocalBuilder> localMap,
+		                                                 Action<ILGenerator> loadFirstInstance,
+		                                                 Action<ILGenerator> loadSecondInstance,
+		                                                 MemberInfo memberInfo,
+		                                                 Type memberType,
+		                                                 Label retFalse) {
+		                                                 Action<ILGenerator> emitLoadFirstMember;
+		                                                 Action<ILGenerator> emitLoadSecondMember;
 			if (memberInfo is FieldInfo)
 				emitLoadFirstMember = emitLoadSecondMember = ilg => ilg.Emit(OpCodes.Ldfld, (FieldInfo) memberInfo);
 			else

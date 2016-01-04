@@ -15,17 +15,10 @@ namespace Equality {
 		internal static readonly ConcurrentDictionary<Type, GetHashCode<Object>> DynamicCache = new ConcurrentDictionary<Type, GetHashCode<Object>>();
 
 		internal static GetHashCode<T> GetHashCodeFunc<T>(Type type) {
-			var dynamicMethod = new DynamicMethod(String.Empty, typeof (Int32), new[] {typeof (T).MakeByRefType()}, typeof (T).Module, skipVisibility: true);
-			var ilGenerator = dynamicMethod.GetILGenerator();
-
-			var fields = Common.GetFields(type);
-			var properties = Common.GetProperties(type);
-			GenerateIL<T>(type, ilGenerator, fields, properties);
-
-			return (GetHashCode<T>) dynamicMethod.CreateDelegate(typeof (GetHashCode<T>));
+			return Common.GenerateIL<GetHashCode<T>>(GenerateIL<T>, type);
 		}
 
-		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator, FieldInfo[] fields, PropertyInfo[] properties) {
+		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator) {
 			const Int32 prime = 486187739; // number from http://stackoverflow.com/a/2816747/232574
 			Action<ILGenerator> loadInstanceOpCode = i => i.Emit(OpCodes.Ldarg_0);
 			if (typeof (T) != type) {
@@ -35,10 +28,13 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Castclass, type);
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
+
 			var objectGetHashCode = typeof (Object).GetMethod(nameof(GetHashCode), Type.EmptyTypes);
 			var hashCode = ilGenerator.DeclareLocal(typeof (Int32));
 			ilGenerator.Emit(OpCodes.Ldc_I4, prime);
 			ilGenerator.Emit(OpCodes.Stloc, hashCode);
+
+			var fields = Common.GetFields(type);
 			for (var i = 0; i < fields.Length; i++) {
 				var field = fields[i];
 				Func<Boolean> isValueType = () => field.FieldType.IsValueType;
@@ -48,6 +44,8 @@ namespace Equality {
 
 				EmitMemberIL<T>(ilGenerator, prime, isValueType, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
 			}
+
+			var properties = Common.GetProperties(type);
 			for (var i = 0; i < properties.Length; i++) {
 				var property = properties[i];
 				Func<Boolean> isValueType = () => property.PropertyType.IsValueType;
@@ -57,20 +55,21 @@ namespace Equality {
 
 				EmitMemberIL<T>(ilGenerator, prime, isValueType, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
 			}
+
 			ilGenerator.Emit(OpCodes.Ldloc, hashCode);
 			ilGenerator.Emit(OpCodes.Ret);
 		}
 
 		private static void EmitMemberIL<T>(ILGenerator ilGenerator,
-		                              Int32 prime,
-		                              Func<Boolean> isValueType,
-		                              Boolean isFirst,
-		                              LocalBuilder hashCode,
-		                              Action<ILGenerator> loadInstanceOpCode,
-		                              Action loadValueTypeMember,
-		                              Type memberType,
-		                              Action loadReferenceTypeMember,
-		                              MethodInfo objectGetHashCode) {
+		                                    Int32 prime,
+		                                    Func<Boolean> isValueType,
+		                                    Boolean isFirst,
+		                                    LocalBuilder hashCode,
+		                                    Action<ILGenerator> loadInstanceOpCode,
+		                                    Action loadValueTypeMember,
+		                                    Type memberType,
+		                                    Action loadReferenceTypeMember,
+		                                    MethodInfo objectGetHashCode) {
 			if (isValueType()) {
 				if (!isFirst) {
 					ilGenerator.Emit(OpCodes.Ldloc, hashCode);
