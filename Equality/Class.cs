@@ -2,18 +2,20 @@ using System;
 
 namespace Equality {
 	public static class Class {
-		public static Int32 GetHashCode<T>(T @object)  where T : class => GetClassHashCodeInternal(@object, @object.GetType());
-		public static Boolean Equals<T>(T x, T y)      where T : class => ClassEqualsInternal(x, y);
-		public static Boolean Equals<T>(T x, Object y) where T : class => ClassEqualsInternal(x, y as T);
+		public static Int32 GetHashCode<T>(T @object)  where T : class => GetHashCodeInternal(@object, @object.GetType());
 
-		private static Int32 GetClassHashCodeInternal<T>(T @object, Type type) where T : class {
+		public static Boolean Equals<T>(T x, T y)      where T : class => EqualsInternal(x, y);
+
+		public static Boolean Equals<T>(T x, Object y) where T : class => EqualsInternal(x, y as T);
+
+		private static Int32 GetHashCodeInternal<T>(T @object, Type type) where T : class {
 			if (type == typeof (T))
 				return GetHashCodeInternals.StaticCache<T>.Func.Invoke(ref @object);
 			Object o = @object;
 			return GetHashCodeInternals.DynamicCache.GetOrAdd(type, GetHashCodeInternals.GetHashCodeFunc<Object>).Invoke(ref o);
 		}
 
-		private static Boolean ClassEqualsInternal<T>(T x, T y) where T : class {
+		private static Boolean EqualsInternal<T>(T x, T y) where T : class {
 			if (x == null || y == null)
 				return false;
 			if (ReferenceEquals(x, y))
