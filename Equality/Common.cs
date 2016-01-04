@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -8,11 +9,20 @@ namespace Equality {
 	internal static class Common {
 		internal static FieldInfo[] GetFields(Type type) {
 			var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-			var backingFieldsOfExcludedAutoProperties = type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			                                                .Where(x => x.IsDefined(typeof(ExcludeAutoPropertyAttribute), inherit:true))
-			                                                .Select(GetBackingField)
-			                                                .Where(x => x != null);
-			return fields.Except(backingFieldsOfExcludedAutoProperties).ToArray();
+			if (type.IsDefined(typeof(ExcludeMembersByDefault)))
+				return GetFieldsWithAttribute<IncludeFieldAttribute>(fields).Concat(GetAutoPropertyBackingFields<IncludeAutoPropertyAttribute>(type)).ToArray();
+			return fields.Except(GetFieldsWithAttribute<ExcludeFieldAttribute>(fields)).Except(GetAutoPropertyBackingFields<ExcludeAutoPropertyAttribute>(type)).ToArray();
+		}
+
+		private static IEnumerable<FieldInfo> GetFieldsWithAttribute<TAttribute>(IEnumerable<FieldInfo> fieldInfos) {
+			return fieldInfos.Where(x => x.IsDefined(typeof(TAttribute), inherit: true));
+		}
+
+		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields<TAttribute>(Type type) where TAttribute : Attribute {
+			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			           .Where(x => x.IsDefined(typeof(TAttribute), inherit: true))
+			           .Select(GetBackingField)
+			           .Where(x => x != null);
 		}
 
 		private static FieldInfo GetBackingField(PropertyInfo pi) {
