@@ -30,16 +30,32 @@ namespace Tests {
 			}
 
 			public Boolean Equals(Foo o) {
+				if (a != o.a)
+					return false;
+				if (b != o.b)
+					return false;
+				if (Count != o.Count)
+					return false;
 				var bar = Bar;
 				var bar2 = o.Bar;
-				return a == o.a
-					&& b == o.b
-					&& Count == o.Count
-					&& ((ReferenceEquals(bar, null) && ReferenceEquals(bar2, null)) || (bar != null && bar.Equals(bar2)));
+				if (ReferenceEquals(bar, null) && ReferenceEquals(bar2, null))
+					return true;
+				return bar != null && bar.Equals(bar2);
 			}
 
 			private static Boolean Equals(ref Foo x, ref Foo y) {
-				return x.Bar.Equals(y.Bar) && x.a.Equals(y.a) && x.Count.Equals(y.Count);
+				var bar = x.Bar;
+				var bar2 = y.Bar;
+				if (ReferenceEquals(bar, null) != ReferenceEquals(bar2, null))
+					return false;
+				if (bar == null || !bar.Equals(bar2))
+					return false;
+				if (!x.a.Equals(y.a))
+					return false;
+				if (!Equals(x.Count, y.Count))
+					return false;
+				return true;
+				//return x.Bar.Equals(y.Bar) && x.a.Equals(y.a) && x.Count.Equals(y.Count);
 			}
 
 			public override Boolean Equals(Object obj) => obj is Foo && Equals((Foo)obj);

@@ -65,10 +65,11 @@ namespace Equality {
 			var returnType = invokeMethodInfo.ReturnType;
 			var parameterTypes = invokeMethodInfo.GetParameters().Select(x => x.ParameterType).ToArray();
 
+			ILGenerator ilGenerator;
 #if DEBUG
 			var methodBuilder = builder.DefineMethod(methodName + "_" + type.Name, MethodAttributes.Public | MethodAttributes.Static, returnType, parameterTypes);
 
-			var ilGenerator = methodBuilder.GetILGenerator();
+			ilGenerator = methodBuilder.GetILGenerator();
 			ilGeneration(type, ilGenerator);
 #endif
 
@@ -78,7 +79,12 @@ namespace Equality {
 			return dynamicMethod.CreateDelegate<TDelegate>();
 		}
 
-		internal static TDelegate CreateDelegate<TDelegate>(this DynamicMethod dm) where TDelegate : class => (TDelegate) (Object) dm.CreateDelegate(typeof (TDelegate));
-		internal static Action<T> CombineDelegates<T>(Action<T> a, Action<T> b) => (Action<T>) Delegate.Combine(a, b);
+		internal static TDelegate CreateDelegate<TDelegate>(this DynamicMethod dm) where TDelegate : class {
+			if (!typeof(TDelegate).IsSubclassOf(typeof(MulticastDelegate)))
+				throw new ArgumentException("Argument must be a delegate type", nameof(TDelegate));
+			return (TDelegate) (Object) dm.CreateDelegate(typeof (TDelegate));
+		}
+
+		internal static Action<T> CombineDelegates<T>(this Action<T> a, Action<T> b) => (Action<T>) Delegate.Combine(a, b);
 	}
 }

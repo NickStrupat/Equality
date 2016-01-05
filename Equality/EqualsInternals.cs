@@ -70,8 +70,10 @@ namespace Equality {
 			Action<ILGenerator> emitLoadSecondMember;
 			if (memberInfo is FieldInfo)
 				emitLoadFirstMember = emitLoadSecondMember = ilg => ilg.Emit(OpCodes.Ldfld, (FieldInfo) memberInfo);
-			else
+			else if (memberInfo is PropertyInfo)
 				emitLoadFirstMember = emitLoadSecondMember = ilg => ilg.Emit(OpCodes.Call, ((PropertyInfo) memberInfo).GetGetMethod(nonPublic: true));
+			else
+				throw new ArgumentOutOfRangeException(nameof(memberInfo), "Must be FieldInfo or PropertyInfo");
 
 			Action<ILGenerator> emitComparison = delegate { };
 			if (memberType.IsPrimitive)
@@ -81,9 +83,6 @@ namespace Equality {
 				if (typeof (IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType)) {
 					if (memberType.IsValueType) {
 						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(localMap, memberInfo, memberType, emitLoadFirstMember);
-					}
-					else {
-						//emitComparison = CombineDelegates(emitComparison, ilg => );
 					}
 					emitComparison = ilg => ilg.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] {memberType}));
 				}
@@ -100,23 +99,55 @@ namespace Equality {
 				emitComparison = Common.CombineDelegates(emitComparison, ilg => ilg.Emit(OpCodes.Brfalse, retFalse));
 			}
 
-			loadFirstInstance(ilGenerator);
-			emitLoadFirstMember(ilGenerator);
-			loadSecondInstance(ilGenerator);
-			emitLoadSecondMember(ilGenerator);
-			emitComparison(ilGenerator);
+			if (memberType.IsValueType) {
+				loadFirstInstance(ilGenerator);
+				emitLoadFirstMember(ilGenerator);
+				loadSecondInstance(ilGenerator);
+				emitLoadSecondMember(ilGenerator);
+				emitComparison(ilGenerator);
+			}
+			else {
+				throw new NotImplementedException();
+				loadFirstInstance(ilGenerator);
+				emitLoadFirstMember(ilGenerator);
+				var firstHold = ilGenerator.DeclareLocal(memberType);
+				ilGenerator.Emit(OpCodes.Stloc, firstHold);
+
+				loadSecondInstance(ilGenerator);
+				emitLoadSecondMember(ilGenerator);
+				var secondHold = ilGenerator.DeclareLocal(memberType);
+				ilGenerator.Emit(OpCodes.Stloc, secondHold);
+
+				var label = ilGenerator.DefineLabel();
+				ilGenerator.Emit(OpCodes.Ldloc, firstHold);
+				ilGenerator.Emit(OpCodes.Brtrue, label);
+				ilGenerator.Emit(OpCodes.Ldloc, secondHold);
+				ilGenerator.Emit(OpCodes.Brtrue, label);
+				ilGenerator.Emit(OpCodes.Ldc_I4_1);
+				ilGenerator.Emit(OpCodes.Ret);
+
+				ilGenerator.MarkLabel(label);
+				ilGenerator.Emit(OpCodes.Ldloc, firstHold);
+				ilGenerator.Emit(OpCodes.Brfalse, retFalse);
+
+				ilGenerator.Emit(OpCodes.Ldloc, firstHold);
+				ilGenerator.Emit(OpCodes.Ldloc, secondHold);
+				emitComparison(ilGenerator);
+			}
 		}
 
 		private static Action<ILGenerator> SetEmitLoadFirstMemberForValueType(ConcurrentDictionary<Type, LocalBuilder> localMap, MemberInfo memberInfo, Type memberType, Action<ILGenerator> emitLoadFirstMember) {
 			if (memberInfo is FieldInfo)
 				emitLoadFirstMember = ilg => ilg.Emit(OpCodes.Ldflda, (FieldInfo) memberInfo);
-			else {
+			else if (memberInfo is PropertyInfo) {
 				emitLoadFirstMember = ilg => {
 					                      var local = localMap.GetOrAdd(memberType, ilg.DeclareLocal);
 					                      ilg.Emit(OpCodes.Stloc, local);
 					                      ilg.Emit(OpCodes.Ldloca, local);
 				                      };
 			}
+			else
+				throw new ArgumentOutOfRangeException(nameof(memberInfo), "Must be FieldInfo or PropertyInfo");
 			return emitLoadFirstMember;
 		}
 	}
