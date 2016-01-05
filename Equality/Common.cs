@@ -10,11 +10,11 @@ namespace Equality {
 		internal static FieldInfo[] GetFields(Type type) {
 			var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
 			if (type.IsDefined(typeof(ExcludeMembersByDefault)))
-				return GetFieldsWithAttribute<IncludeFieldAttribute>(fields).Concat(GetAutoPropertyBackingFields<IncludeAutoPropertyAttribute>(type)).ToArray();
-			return fields.Except(GetFieldsWithAttribute<ExcludeFieldAttribute>(fields)).Except(GetAutoPropertyBackingFields<ExcludeAutoPropertyAttribute>(type)).ToArray();
+				return GetFields<IncludeFieldAttribute>(fields).Concat(GetAutoPropertyBackingFields<IncludeAutoPropertyAttribute>(type)).ToArray();
+			return fields.Except(GetFields<ExcludeFieldAttribute>(fields)).Except(GetAutoPropertyBackingFields<ExcludeAutoPropertyAttribute>(type)).ToArray();
 		}
 
-		private static IEnumerable<FieldInfo> GetFieldsWithAttribute<TAttribute>(IEnumerable<FieldInfo> fieldInfos) {
+		private static IEnumerable<FieldInfo> GetFields<TAttribute>(IEnumerable<FieldInfo> fieldInfos) {
 			return fieldInfos.Where(x => x.IsDefined(typeof(TAttribute), inherit: true));
 		}
 
