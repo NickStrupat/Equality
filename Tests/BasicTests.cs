@@ -1,4 +1,5 @@
 ﻿using System;
+using System.CodeDom;
 
 using Equality;
 
@@ -7,6 +8,14 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Tests {
 	[TestClass]
 	public class BasicTests {
+#if DEBUG
+		[TestInitialize()]
+		public void Initialize() { }
+
+		[TestCleanup()]
+		public void Cleanup() => GC.WaitForPendingFinalizers();
+#endif
+
 		struct Foo : IEquatable<Foo> {
 			public Boolean a;
 			public String b;
@@ -27,6 +36,10 @@ namespace Tests {
 					&& b == o.b
 					&& Count == o.Count
 					&& ((ReferenceEquals(bar, null) && ReferenceEquals(bar2, null)) || (bar != null && bar.Equals(bar2)));
+			}
+
+			private static Boolean Equals(ref Foo x, ref Foo y) {
+				return x.Bar.Equals(y.Bar) && x.a.Equals(y.a) && x.Count.Equals(y.Count);
 			}
 
 			public override Boolean Equals(Object obj) => obj is Foo && Equals((Foo)obj);
@@ -60,7 +73,12 @@ namespace Tests {
 					return true;
 				if (typeof(Bar) != other.GetType())
 					return false;
-				return Foo.Equals(other.Foo) && Text.Equals(other.Text);
+				var x = this;
+				return Equals(ref x, ref other);
+			}
+
+			private static Boolean Equals(ref Bar x, ref Bar y) {
+				return x.Foo.Equals(y.Foo) && x.Text.Equals(y.Text);
 			}
 
 			public override Int32 GetHashCode() {
@@ -135,8 +153,8 @@ namespace Tests {
 			Assert.IsTrue(bar.Equals(bar2));
 			Assert.IsFalse(bar.Equals(bar3));
 			Assert.IsFalse(bar.Equals(bar4));
-			Assert.AreEqual(bar.Equals(bar),    Class.Equals(bar, bar));
-			Assert.AreEqual(bar.Equals(bar),    Class.Equals(bar, bar));
+			Assert.AreEqual(bar.Equals(bar), Class.Equals(bar, bar));
+			Assert.AreEqual(bar.Equals(bar), Class.Equals(bar, bar));
 			Assert.AreEqual(bar.Equals(bar2),   Class.Equals(bar, bar2));
 			Assert.AreEqual(!bar.Equals(bar3), !Class.Equals(bar, bar3));
 			Assert.AreEqual(bar.Equals(bar4),   Class.Equals(bar, bar4));

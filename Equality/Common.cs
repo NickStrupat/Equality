@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -42,6 +43,21 @@ namespace Equality {
 			           .ToArray();
 		}
 
+#if DEBUG
+		private static readonly AssemblyName assemblyName = new AssemblyName("Debug.EqualityMethods");
+		private static readonly AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave, Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
+		private static readonly ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");
+		private static readonly TypeBuilder builder = moduleBuilder.DefineType("EqualityMethods", TypeAttributes.Public);
+		private static readonly AssemblySaver assemblySaver = new AssemblySaver();
+
+		class AssemblySaver {
+			~AssemblySaver() {
+				var type = builder.CreateType();
+				assemblyBuilder.Save(assemblyName.Name + ".dll");
+			}
+		}
+#endif
+
 		internal static TDelegate GenerateIL<TDelegate>(Action<Type, ILGenerator> ilGeneration, Type type, [CallerMemberName] String methodName = null) where TDelegate : class {
 			if (!typeof(TDelegate).IsSubclassOf(typeof(MulticastDelegate)))
 				throw new ArgumentException(nameof(TDelegate));
@@ -50,27 +66,19 @@ namespace Equality {
 			var parameterTypes = invokeMethodInfo.GetParameters().Select(x => x.ParameterType).ToArray();
 
 #if DEBUG
-			var assemblyName = new AssemblyName("Debug.EqualityMethods");
-			var assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave, @"c:");
-			var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");
-
-			TypeBuilder builder = moduleBuilder.DefineType("EqualityMethods", TypeAttributes.Public);
-			var methodBuilder = builder.DefineMethod(methodName + "_" + type.Name, MethodAttributes.Public, returnType, parameterTypes);
+			var methodBuilder = builder.DefineMethod(methodName + "_" + type.Name, MethodAttributes.Public | MethodAttributes.Static, returnType, parameterTypes);
 
 			var ilGenerator = methodBuilder.GetILGenerator();
 			ilGeneration(type, ilGenerator);
-
-			var t = builder.CreateType();
-			assemblyBuilder.Save(assemblyName.Name + ".dll");
-#else
 #endif
 
-			var dynamicMethod = new DynamicMethod(methodName, returnType, parameterTypes, typeof(Common).Module, skipVisibility: true);
+			var dynamicMethod = new DynamicMethod(methodName + "_" + type.Name, returnType, parameterTypes, typeof(Common).Module, skipVisibility: true);
 			ilGenerator = dynamicMethod.GetILGenerator();
 			ilGeneration(type, ilGenerator);
 			return dynamicMethod.CreateDelegate<TDelegate>();
 		}
 
 		internal static TDelegate CreateDelegate<TDelegate>(this DynamicMethod dm) where TDelegate : class => (TDelegate) (Object) dm.CreateDelegate(typeof (TDelegate));
+		internal static Action<T> CombineDelegates<T>(Action<T> a, Action<T> b) => (Action<T>) Delegate.Combine(a, b);
 	}
 }

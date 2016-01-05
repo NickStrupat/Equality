@@ -28,6 +28,8 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Castclass, type);
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
+			if (!type.IsValueType)
+				loadInstanceOpCode = Common.CombineDelegates(loadInstanceOpCode, ilg => ilg.Emit(OpCodes.Ldind_Ref));
 
 			var objectGetHashCode = typeof (Object).GetMethod(nameof(GetHashCode), Type.EmptyTypes);
 			var hashCode = ilGenerator.DeclareLocal(typeof (Int32));

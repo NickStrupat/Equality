@@ -35,6 +35,10 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Castclass, type);
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
+			if (!type.IsValueType) {
+				loadFirstInstance = Common.CombineDelegates(loadFirstInstance, ilg => ilg.Emit(OpCodes.Ldind_Ref));
+				loadSecondInstance = Common.CombineDelegates(loadSecondInstance, ilg => ilg.Emit(OpCodes.Ldind_Ref));
+			}
 
 			var retFalse = ilGenerator.DefineLabel();
 			var localMap = new ConcurrentDictionary<Type, LocalBuilder>();
@@ -62,8 +66,8 @@ namespace Equality {
 		                                                 MemberInfo memberInfo,
 		                                                 Type memberType,
 		                                                 Label retFalse) {
-		                                                 Action<ILGenerator> emitLoadFirstMember;
-		                                                 Action<ILGenerator> emitLoadSecondMember;
+			Action<ILGenerator> emitLoadFirstMember;
+			Action<ILGenerator> emitLoadSecondMember;
 			if (memberInfo is FieldInfo)
 				emitLoadFirstMember = emitLoadSecondMember = ilg => ilg.Emit(OpCodes.Ldfld, (FieldInfo) memberInfo);
 			else
@@ -89,11 +93,11 @@ namespace Equality {
 				else {
 					if (memberType.IsValueType) {
 						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(localMap, memberInfo, memberType, emitLoadFirstMember);
-						loadSecondInstance = CombineDelegates(loadSecondInstance, ilg => ilg.Emit(OpCodes.Box, memberType));
+						loadSecondInstance = Common.CombineDelegates(loadSecondInstance, ilg => ilg.Emit(OpCodes.Box, memberType));
 					}
 					emitComparison = ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof (Object)}));
 				}
-				emitComparison = CombineDelegates(emitComparison, ilg => ilg.Emit(OpCodes.Brfalse, retFalse));
+				emitComparison = Common.CombineDelegates(emitComparison, ilg => ilg.Emit(OpCodes.Brfalse, retFalse));
 			}
 
 			loadFirstInstance(ilGenerator);
@@ -102,8 +106,6 @@ namespace Equality {
 			emitLoadSecondMember(ilGenerator);
 			emitComparison(ilGenerator);
 		}
-
-		private static Action<T> CombineDelegates<T>(Action<T> a, Action<T> b) => (Action<T>) Delegate.Combine(a, b);
 
 		private static Action<ILGenerator> SetEmitLoadFirstMemberForValueType(ConcurrentDictionary<Type, LocalBuilder> localMap, MemberInfo memberInfo, Type memberType, Action<ILGenerator> emitLoadFirstMember) {
 			if (memberInfo is FieldInfo)
