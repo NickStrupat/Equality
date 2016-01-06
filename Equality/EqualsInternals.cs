@@ -27,9 +27,19 @@ namespace Equality {
 
 		private static readonly ConcurrentDictionary<Type, ClassEquals<Object>> DynamicCache = new ConcurrentDictionary<Type, ClassEquals<Object>>();
 
-		private static Boolean EnumerableEquals      <T>(IEnumerable<T> first, IEnumerable<T> second) => first.SequenceEqual(second);
+		private static Boolean EnumerableEquals      <T>(IEnumerable<T> first, IEnumerable<T> second) => first.GetType().IsArray ? ArrayEquals((T[]) first, (T[]) second) : first.SequenceEqual(second);
 		private static Boolean EnumerableStructEquals<T>(IEnumerable<T> first, IEnumerable<T> second) where T : struct => first.SequenceEqual(second, StructEqualityComparer<T>.Default);
 		private static Boolean EnumerableClassEquals <T>(IEnumerable<T> first, IEnumerable<T> second) where T : class  => first.SequenceEqual(second, ClassEqualityComparer<T>.Default);
+
+		private static Boolean ArrayEquals<T>(T[] first, T[] second) {
+			if (first.Length != second.Length)
+				return false;
+			var comparer = EqualityComparer<T>.Default;
+			for (var i = 0; i < first.Length; i++)
+				if (!comparer.Equals(first[i], second[i]))
+					return false;
+			return true;
+		}
 
 		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator) {
 			Action<ILGenerator> loadFirstInstance = i => i.Emit(OpCodes.Ldarg_0);
