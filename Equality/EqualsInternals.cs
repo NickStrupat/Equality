@@ -1,5 +1,8 @@
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -23,6 +26,10 @@ namespace Equality {
 		private static ClassEquals<T> GetClassEqualsFunc<T>(Type type) where T : class => Common.GenerateIL<ClassEquals<T>>(GenerateIL<T>, type);
 
 		private static readonly ConcurrentDictionary<Type, ClassEquals<Object>> DynamicCache = new ConcurrentDictionary<Type, ClassEquals<Object>>();
+
+		private static Boolean EnumerableEquals      <T>(IEnumerable<T> first, IEnumerable<T> second) => first.SequenceEqual(second);
+		private static Boolean EnumerableStructEquals<T>(IEnumerable<T> first, IEnumerable<T> second) where T : struct => first.SequenceEqual(second, StructEqualityComparer<T>.Default);
+		private static Boolean EnumerableClassEquals <T>(IEnumerable<T> first, IEnumerable<T> second) where T : class  => first.SequenceEqual(second, ClassEqualityComparer<T>.Default);
 
 		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator) {
 			Action<ILGenerator> loadFirstInstance = i => i.Emit(OpCodes.Ldarg_0);
@@ -88,6 +95,7 @@ namespace Equality {
 				emitComparison = ilg => ilg.Emit(OpCodes.Beq, nextMember);
 			else {
 				MethodInfo opEquality;
+				Type t;
 				if (typeof (IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType)) {
 					if (memberType.IsValueType) {
 						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(firstMemberLocalMap, memberInfo, memberType, emitLoadFirstMember);
@@ -108,7 +116,10 @@ namespace Equality {
 					else {
 						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
 					}
-					emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof (Object)})));
+					if (typeof(IEnumerable).IsAssignableFrom(memberType) && (t = memberType.GetInterfaces().SingleOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>))?.GetGenericArguments().Single()) != null)
+						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof (EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t)));
+					else
+						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof (Object)})));
 				}
 				emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Brtrue, nextMember));
 			}
