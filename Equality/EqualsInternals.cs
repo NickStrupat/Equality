@@ -1,22 +1,28 @@
 using System;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 
 namespace Equality {
 	internal static class EqualsInternals {
-		internal delegate Boolean Equals<T>(ref T x, ref T y);
+		internal delegate Boolean StructEquals<T>(ref T x, ref T y) where T : struct;
+		internal delegate Boolean ClassEquals<in T>(T x, T y) where T : class;
 
-		internal static class StaticCache<T> {
-			public static readonly Equals<T> Func = GetEqualsFunc<T>(typeof (T));
+		internal static class StaticStructCache<T> where T : struct {
+			public static readonly StructEquals<T> Func = GetStructEqualsFunc<T>(typeof (T));
 		}
 
-		internal static readonly ConcurrentDictionary<Type, Equals<Object>> DynamicCache = new ConcurrentDictionary<Type, Equals<Object>>();
-
-		internal static Equals<T> GetEqualsFunc<T>(Type type) {
-			return Common.GenerateIL<Equals<T>>(GenerateIL<T>, type);
+		internal static class StaticClassCache<T> where T : class {
+			public static readonly ClassEquals<T> Func = GetClassEqualsFunc<T>(typeof(T));
 		}
+
+		internal static ClassEquals<Object> GetDynamicClassEquals(Type type) => DynamicCache.GetOrAdd(type, GetClassEqualsFunc<Object>);
+
+		private static StructEquals<T> GetStructEqualsFunc<T>(Type type) where T : struct => Common.GenerateIL<StructEquals<T>>(GenerateIL<T>, type);
+
+		private static ClassEquals<T> GetClassEqualsFunc<T>(Type type) where T : class => Common.GenerateIL<ClassEquals<T>>(GenerateIL<T>, type);
+
+		private static readonly ConcurrentDictionary<Type, ClassEquals<Object>> DynamicCache = new ConcurrentDictionary<Type, ClassEquals<Object>>();
 
 		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator) {
 			Action<ILGenerator> loadFirstInstance = i => i.Emit(OpCodes.Ldarg_0);
@@ -35,21 +41,24 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Castclass, type);
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
-			if (!type.IsValueType) {
-				loadFirstInstance = Common.CombineDelegates(loadFirstInstance, ilg => ilg.Emit(OpCodes.Ldind_Ref));
-				loadSecondInstance = Common.CombineDelegates(loadSecondInstance, ilg => ilg.Emit(OpCodes.Ldind_Ref));
-			}
 
 			var retFalse = ilGenerator.DefineLabel();
-			var localMap = new ConcurrentDictionary<Type, LocalBuilder>();
+			var firstMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
+			var secondMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
 
 			var fields = Common.GetFields(type);
-			foreach (var field in fields)
-				EmitMemberEqualityComparison(ilGenerator, localMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, retFalse);
+			foreach (var field in fields) {
+				var nextField = ilGenerator.DefineLabel();
+				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, retFalse, nextField);
+				ilGenerator.MarkLabel(nextField);
+			}
 
 			var properties = Common.GetProperties(type);
-			foreach (var property in properties)
-				EmitMemberEqualityComparison(ilGenerator, localMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, retFalse);
+			foreach (var property in properties) {
+				var nextProperty = ilGenerator.DefineLabel();
+				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, retFalse, nextProperty);
+				ilGenerator.MarkLabel(nextProperty);
+			}
 
 			ilGenerator.Emit(OpCodes.Ldc_I4_1);
 			ilGenerator.Emit(OpCodes.Ret);
@@ -60,12 +69,14 @@ namespace Equality {
 		}
 
 		private static void EmitMemberEqualityComparison(ILGenerator ilGenerator,
-		                                                 ConcurrentDictionary<Type, LocalBuilder> localMap,
+		                                                 ConcurrentDictionary<Type, LocalBuilder> firstMemberLocalMap,
+		                                                 ConcurrentDictionary<Type, LocalBuilder> secondMemberLocalMap,
 		                                                 Action<ILGenerator> loadFirstInstance,
 		                                                 Action<ILGenerator> loadSecondInstance,
 		                                                 MemberInfo memberInfo,
 		                                                 Type memberType,
-		                                                 Label retFalse) {
+		                                                 Label retFalse,
+		                                                 Label nextMember) {
 			Action<ILGenerator> emitLoadFirstMember;
 			Action<ILGenerator> emitLoadSecondMember;
 			if (memberInfo is FieldInfo)
@@ -82,73 +93,82 @@ namespace Equality {
 				MethodInfo opEquality;
 				if (typeof (IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType)) {
 					if (memberType.IsValueType) {
-						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(localMap, memberInfo, memberType, emitLoadFirstMember);
+						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(firstMemberLocalMap, memberInfo, memberType, emitLoadFirstMember);
 					}
-					emitComparison = ilg => ilg.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] {memberType}));
+					else {
+						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
+					}
+					emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] {memberType})));
 				}
 				else if ((opEquality = memberType.GetMethod("op_Equality", new[] {memberType, memberType})) != null) {
 					emitComparison = ilg => ilg.Emit(OpCodes.Call, opEquality);
 				}
 				else {
 					if (memberType.IsValueType) {
-						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(localMap, memberInfo, memberType, emitLoadFirstMember);
-						loadSecondInstance = Common.CombineDelegates(loadSecondInstance, ilg => ilg.Emit(OpCodes.Box, memberType));
+						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(firstMemberLocalMap, memberInfo, memberType, emitLoadFirstMember);
+						loadSecondInstance = loadSecondInstance.CombineDelegates(ilg => ilg.Emit(OpCodes.Box, memberType));
 					}
-					emitComparison = ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof (Object)}));
+					else {
+						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
+					}
+					emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof (Object)})));
 				}
-				emitComparison = Common.CombineDelegates(emitComparison, ilg => ilg.Emit(OpCodes.Brfalse, retFalse));
+				emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Brfalse, retFalse));
 			}
+			
+			loadFirstInstance(ilGenerator);
+			emitLoadFirstMember(ilGenerator);
+			loadSecondInstance(ilGenerator);
+			emitLoadSecondMember(ilGenerator);
+			emitComparison(ilGenerator);
+		}
 
-			if (memberType.IsValueType) {
-				loadFirstInstance(ilGenerator);
-				emitLoadFirstMember(ilGenerator);
-				loadSecondInstance(ilGenerator);
-				emitLoadSecondMember(ilGenerator);
-				emitComparison(ilGenerator);
-			}
-			else {
-				throw new NotImplementedException();
-				loadFirstInstance(ilGenerator);
-				emitLoadFirstMember(ilGenerator);
-				var firstHold = ilGenerator.DeclareLocal(memberType);
-				ilGenerator.Emit(OpCodes.Stloc, firstHold);
+		private static void SetEmitLoadAndCompareForReferenceType(ConcurrentDictionary<Type, LocalBuilder> firstMemberLocalMap,
+		                                                                         ConcurrentDictionary<Type, LocalBuilder> secondMemberLocalMap,
+		                                                                         Type memberType,
+		                                                                         Label nextMember,
+		                                                                         ref Action<ILGenerator> emitLoadFirstMember,
+		                                                                         ref Action<ILGenerator> emitLoadSecondMember,
+		                                                                         ref Action<ILGenerator> emitComparison)
+		{
+			LocalBuilder firstLocal = null;
+			emitLoadFirstMember = emitLoadFirstMember.CombineDelegates(ilg => {
+				firstLocal = firstMemberLocalMap.GetOrAdd(memberType, ilg.DeclareLocal);
+				ilg.Emit(OpCodes.Stloc, firstLocal);
+			});
+			LocalBuilder secondLocal = null;
+			emitLoadSecondMember = emitLoadSecondMember.CombineDelegates(ilg => {
+				secondLocal = secondMemberLocalMap.GetOrAdd(memberType, ilg.DeclareLocal);
+				ilg.Emit(OpCodes.Stloc, secondLocal);
+			});
+			emitComparison = ilg => {
+				var nonNullMemberCompare = ilg.DefineLabel();
 
-				loadSecondInstance(ilGenerator);
-				emitLoadSecondMember(ilGenerator);
-				var secondHold = ilGenerator.DeclareLocal(memberType);
-				ilGenerator.Emit(OpCodes.Stloc, secondHold);
+				ilg.Emit(OpCodes.Ldloc, firstLocal);
+				ilg.Emit(OpCodes.Brtrue, nonNullMemberCompare);
 
-				var label = ilGenerator.DefineLabel();
-				ilGenerator.Emit(OpCodes.Ldloc, firstHold);
-				ilGenerator.Emit(OpCodes.Brtrue, label);
-				ilGenerator.Emit(OpCodes.Ldloc, secondHold);
-				ilGenerator.Emit(OpCodes.Brtrue, label);
-				ilGenerator.Emit(OpCodes.Ldc_I4_1);
-				ilGenerator.Emit(OpCodes.Ret);
+				ilg.Emit(OpCodes.Ldloc, secondLocal);
+				ilg.Emit(OpCodes.Brfalse, nextMember);
+				ilg.Emit(OpCodes.Ldc_I4_0);
+				ilg.Emit(OpCodes.Ret);
 
-				ilGenerator.MarkLabel(label);
-				ilGenerator.Emit(OpCodes.Ldloc, firstHold);
-				ilGenerator.Emit(OpCodes.Brfalse, retFalse);
-
-				ilGenerator.Emit(OpCodes.Ldloc, firstHold);
-				ilGenerator.Emit(OpCodes.Ldloc, secondHold);
-				emitComparison(ilGenerator);
-			}
+				ilg.MarkLabel(nonNullMemberCompare);
+				ilg.Emit(OpCodes.Ldloc, firstLocal);
+				ilg.Emit(OpCodes.Ldloc, secondLocal);
+			};
 		}
 
 		private static Action<ILGenerator> SetEmitLoadFirstMemberForValueType(ConcurrentDictionary<Type, LocalBuilder> localMap, MemberInfo memberInfo, Type memberType, Action<ILGenerator> emitLoadFirstMember) {
 			if (memberInfo is FieldInfo)
-				emitLoadFirstMember = ilg => ilg.Emit(OpCodes.Ldflda, (FieldInfo) memberInfo);
-			else if (memberInfo is PropertyInfo) {
-				emitLoadFirstMember = ilg => {
-					                      var local = localMap.GetOrAdd(memberType, ilg.DeclareLocal);
-					                      ilg.Emit(OpCodes.Stloc, local);
-					                      ilg.Emit(OpCodes.Ldloca, local);
-				                      };
+				return ilg => ilg.Emit(OpCodes.Ldflda, (FieldInfo) memberInfo);
+			if (memberInfo is PropertyInfo) {
+				return emitLoadFirstMember.CombineDelegates(ilg => {
+					var local = localMap.GetOrAdd(memberType, ilg.DeclareLocal);
+					ilg.Emit(OpCodes.Stloc, local);
+					ilg.Emit(OpCodes.Ldloca, local);
+				});
 			}
-			else
-				throw new ArgumentOutOfRangeException(nameof(memberInfo), "Must be FieldInfo or PropertyInfo");
-			return emitLoadFirstMember;
+			throw new ArgumentOutOfRangeException(nameof(memberInfo), "Must be FieldInfo or PropertyInfo");
 		}
 	}
 }

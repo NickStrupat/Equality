@@ -6,17 +6,24 @@ using System.Reflection.Emit;
 
 namespace Equality {
 	internal static class GetHashCodeInternals {
-		internal delegate Int32 GetHashCode<T>(ref T x);
+		internal delegate Int32 GetStructHashCode<T>(ref T x) where T : struct;
+		internal delegate Int32 GetClassHashCode<in T>(T x) where T : class;
 
-		internal static class StaticCache<T> {
-			public static readonly GetHashCode<T> Func = GetHashCodeFunc<T>(typeof(T));
+		internal static class StaticStructCache<T> where T : struct {
+			public static readonly GetStructHashCode<T> Func = GetStructHashCodeFunc<T>(typeof(T));
 		}
 
-		internal static readonly ConcurrentDictionary<Type, GetHashCode<Object>> DynamicCache = new ConcurrentDictionary<Type, GetHashCode<Object>>();
-
-		internal static GetHashCode<T> GetHashCodeFunc<T>(Type type) {
-			return Common.GenerateIL<GetHashCode<T>>(GenerateIL<T>, type);
+		internal static class StaticClassCache<T> where T : class {
+			public static readonly GetClassHashCode<T> Func = GetClassHashCodeFunc<T>(typeof(T));
 		}
+
+		internal static GetClassHashCode<Object> GetDynamicClassEquals(Type type) => DynamicCache.GetOrAdd(type, GetClassHashCodeFunc<Object>);
+
+		private static GetStructHashCode<T> GetStructHashCodeFunc<T>(Type type) where T : struct => Common.GenerateIL<GetStructHashCode<T>>(GenerateIL<T>, type);
+
+		private static GetClassHashCode<T> GetClassHashCodeFunc<T>(Type type) where T : class => Common.GenerateIL<GetClassHashCode<T>>(GenerateIL<T>, type);
+
+		private static readonly ConcurrentDictionary<Type, GetClassHashCode<Object>> DynamicCache = new ConcurrentDictionary<Type, GetClassHashCode<Object>>();
 
 		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator) {
 			const Int32 prime = 486187739; // number from http://stackoverflow.com/a/2816747/232574
@@ -28,8 +35,6 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Castclass, type);
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
-			if (!type.IsValueType)
-				loadInstanceOpCode = Common.CombineDelegates(loadInstanceOpCode, ilg => ilg.Emit(OpCodes.Ldind_Ref));
 
 			var objectGetHashCode = typeof (Object).GetMethod(nameof(GetHashCode), Type.EmptyTypes);
 			var hashCode = ilGenerator.DeclareLocal(typeof (Int32));

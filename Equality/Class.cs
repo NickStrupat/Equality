@@ -8,11 +8,10 @@ namespace Equality {
 
 		public static Boolean Equals<T>(T x, Object y) where T : class => EqualsInternal(x, y as T);
 
-		private static Int32 GetHashCodeInternal<T>(T @object, Type type) where T : class {
+		private static Int32 GetHashCodeInternal<T>(T x, Type type) where T : class {
 			if (type == typeof (T))
-				return GetHashCodeInternals.StaticCache<T>.Func.Invoke(ref @object);
-			Object o = @object;
-			return GetHashCodeInternals.DynamicCache.GetOrAdd(type, GetHashCodeInternals.GetHashCodeFunc<Object>).Invoke(ref o);
+				return GetHashCodeInternals.StaticClassCache<T>.Func.Invoke(x);
+			return GetHashCodeInternals.GetDynamicClassEquals(type).Invoke(x);
 		}
 
 		private static Boolean EqualsInternal<T>(T x, T y) where T : class {
@@ -25,10 +24,8 @@ namespace Equality {
 			if (xType != yType)
 				return false;
 			if (xType == typeof(T))
-				return EqualsInternals.StaticCache<T>.Func.Invoke(ref x, ref y);
-			Object o = x;
-			Object o2 = y;
-			return EqualsInternals.DynamicCache.GetOrAdd(xType, EqualsInternals.GetEqualsFunc<Object>).Invoke(ref o, ref o2);
+				return EqualsInternals.StaticClassCache<T>.Func.Invoke(x, y);
+			return EqualsInternals.GetDynamicClassEquals(xType).Invoke(x, y);
 		}
 	}
 }

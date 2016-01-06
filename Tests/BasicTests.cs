@@ -46,10 +46,13 @@ namespace Tests {
 			private static Boolean Equals(ref Foo x, ref Foo y) {
 				var bar = x.Bar;
 				var bar2 = y.Bar;
-				if (ReferenceEquals(bar, null) != ReferenceEquals(bar2, null))
+				if (ReferenceEquals(bar, null)) {
+					if (!ReferenceEquals(bar2, null))
+						return false;
+				}
+				else if (!bar.Equals(bar2))
 					return false;
-				if (bar == null || !bar.Equals(bar2))
-					return false;
+
 				if (!x.a.Equals(y.a))
 					return false;
 				if (!Equals(x.Count, y.Count))
@@ -80,6 +83,7 @@ namespace Tests {
 		class Bar : IEquatable<Bar> {
 			public Foo Foo;
 			public String Text { get; set; }
+			public Int64 Number;
 
 			public override Boolean Equals(Object obj) => Equals(obj as Bar);
 			public Boolean Equals(Bar other) {
@@ -105,6 +109,7 @@ namespace Tests {
 					var text = this.Text;
 					if (text != null)
 						hashCode = hashCode * prime + text.GetHashCode();
+					hashCode = hashCode * prime + Number.GetHashCode();
 					return hashCode;
 				}
 			}
@@ -169,11 +174,11 @@ namespace Tests {
 			Assert.IsTrue(bar.Equals(bar2));
 			Assert.IsFalse(bar.Equals(bar3));
 			Assert.IsFalse(bar.Equals(bar4));
-			Assert.AreEqual(bar.Equals(bar), Class.Equals(bar, bar));
-			Assert.AreEqual(bar.Equals(bar), Class.Equals(bar, bar));
-			Assert.AreEqual(bar.Equals(bar2),   Class.Equals(bar, bar2));
-			Assert.AreEqual(!bar.Equals(bar3), !Class.Equals(bar, bar3));
-			Assert.AreEqual(bar.Equals(bar4),   Class.Equals(bar, bar4));
+
+			Assert.IsTrue( Class.Equals(bar, bar));
+			Assert.IsTrue( Class.Equals(bar, bar2));
+			Assert.IsFalse(Class.Equals(bar, bar3));
+			Assert.IsFalse(Class.Equals(bar, bar4));
 
 			var baz = new Baz() { Yep = "Yep", Text = "Text" };
 			var baz2 = new Baz() { Yep = "Yep", Text = "Text" };
