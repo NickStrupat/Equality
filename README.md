@@ -3,6 +3,6 @@ The last .NET equality solution you'll ever need. Automatically produces equalit
 
 ###TODO
 
-- Handle enumerables
+- ~~Handle enumerables~~
 - 'Fluent'-style API for configuring fields to include/exclude
 - Fody tool to IL-weave the overrides to call the respective 'Equality' methods
