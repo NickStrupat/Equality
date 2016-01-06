@@ -93,12 +93,23 @@ namespace Tests {
 					return true;
 				if (typeof(Bar) != other.GetType())
 					return false;
-				var x = this;
-				return Equals(ref x, ref other);
+				return Equals(this, other);
 			}
 
-			private static Boolean Equals(ref Bar x, ref Bar y) {
-				return x.Foo.Equals(y.Foo) && x.Text.Equals(y.Text);
+			private static Boolean Equals(Bar x, Bar y) {
+				if (!x.Foo.Equals(y.Foo))
+					return false;
+				var text = x.Text;
+				var text2 = y.Text;
+				if (ReferenceEquals(text, null)) {
+					if (!ReferenceEquals(text2, null))
+						return false;
+				}
+				else if (!text.Equals(text2))
+					return false;
+				if (x.Number != y.Number)
+					return false;
+				return true;
 			}
 
 			public override Int32 GetHashCode() {

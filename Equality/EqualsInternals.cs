@@ -42,29 +42,26 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
 
-			var retFalse = ilGenerator.DefineLabel();
+			var returnTrue = ilGenerator.DefineLabel();
 			var firstMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
 			var secondMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
 
 			var fields = Common.GetFields(type);
 			foreach (var field in fields) {
 				var nextField = ilGenerator.DefineLabel();
-				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, retFalse, nextField);
+				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, returnTrue, nextField);
 				ilGenerator.MarkLabel(nextField);
 			}
 
 			var properties = Common.GetProperties(type);
 			foreach (var property in properties) {
 				var nextProperty = ilGenerator.DefineLabel();
-				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, retFalse, nextProperty);
+				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, returnTrue, nextProperty);
 				ilGenerator.MarkLabel(nextProperty);
 			}
 
+			ilGenerator.MarkLabel(returnTrue);
 			ilGenerator.Emit(OpCodes.Ldc_I4_1);
-			ilGenerator.Emit(OpCodes.Ret);
-
-			ilGenerator.MarkLabel(retFalse);
-			ilGenerator.Emit(OpCodes.Ldc_I4_0);
 			ilGenerator.Emit(OpCodes.Ret);
 		}
 
@@ -75,7 +72,7 @@ namespace Equality {
 		                                                 Action<ILGenerator> loadSecondInstance,
 		                                                 MemberInfo memberInfo,
 		                                                 Type memberType,
-		                                                 Label retFalse,
+		                                                 Label returnTrue,
 		                                                 Label nextMember) {
 			Action<ILGenerator> emitLoadFirstMember;
 			Action<ILGenerator> emitLoadSecondMember;
@@ -88,7 +85,7 @@ namespace Equality {
 
 			Action<ILGenerator> emitComparison = delegate { };
 			if (memberType.IsPrimitive)
-				emitComparison = ilg => ilg.Emit(OpCodes.Bne_Un, retFalse);
+				emitComparison = ilg => ilg.Emit(OpCodes.Beq, nextMember);
 			else {
 				MethodInfo opEquality;
 				if (typeof (IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType)) {
@@ -113,7 +110,7 @@ namespace Equality {
 					}
 					emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof (Object)})));
 				}
-				emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Brfalse, retFalse));
+				emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Brtrue, nextMember));
 			}
 			
 			loadFirstInstance(ilGenerator);
@@ -121,6 +118,9 @@ namespace Equality {
 			loadSecondInstance(ilGenerator);
 			emitLoadSecondMember(ilGenerator);
 			emitComparison(ilGenerator);
+
+			ilGenerator.Emit(OpCodes.Ldc_I4_0);
+			ilGenerator.Emit(OpCodes.Ret);
 		}
 
 		private static void SetEmitLoadAndCompareForReferenceType(ConcurrentDictionary<Type, LocalBuilder> firstMemberLocalMap,
