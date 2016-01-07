@@ -38,8 +38,6 @@ namespace Equality {
 
 			var objectGetHashCode = typeof (Object).GetMethod(nameof(GetHashCode), Type.EmptyTypes);
 			var hashCode = ilGenerator.DeclareLocal(typeof (Int32));
-			ilGenerator.Emit(OpCodes.Ldc_I4, prime);
-			ilGenerator.Emit(OpCodes.Stloc, hashCode);
 
 			var fields = Common.GetFields(type);
 			for (var i = 0; i < fields.Length; i++) {
