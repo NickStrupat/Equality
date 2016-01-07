@@ -38,6 +38,8 @@ namespace Equality {
 
 			var objectGetHashCode = typeof (Object).GetMethod(nameof(GetHashCode), Type.EmptyTypes);
 			var hashCode = ilGenerator.DeclareLocal(typeof (Int32));
+			ilGenerator.Emit(OpCodes.Ldc_I4, 0);
+			ilGenerator.Emit(OpCodes.Stloc, hashCode);
 
 			var fields = Common.GetFields(type);
 			for (var i = 0; i < fields.Length; i++) {
@@ -73,16 +75,13 @@ namespace Equality {
 											Action<ILGenerator> loadReferenceTypeMember,
 		                                    MethodInfo objectGetHashCode) {
 			if (memberType.IsValueType) {
-				if (!isFirst) {
-					ilGenerator.Emit(OpCodes.Ldloc, hashCode);
-					ilGenerator.Emit(OpCodes.Ldc_I4, prime);
-					ilGenerator.Emit(OpCodes.Mul);
-				}
+				ilGenerator.Emit(OpCodes.Ldloc, hashCode);
+				ilGenerator.Emit(OpCodes.Ldc_I4, prime);
+				ilGenerator.Emit(OpCodes.Mul);
 				loadInstanceOpCode(ilGenerator);
 				loadValueTypeMember(ilGenerator);
 				ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(GetHashCode), Type.EmptyTypes));
-				if (!isFirst)
-					ilGenerator.Emit(OpCodes.Add);
+				ilGenerator.Emit(OpCodes.Add);
 				ilGenerator.Emit(OpCodes.Stloc, hashCode);
 			}
 			else {
@@ -93,16 +92,12 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Stloc, hold);
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
 				ilGenerator.Emit(OpCodes.Brfalse_S, label);
-
-				if (!isFirst) {
-					ilGenerator.Emit(OpCodes.Ldloc, hashCode);
-					ilGenerator.Emit(OpCodes.Ldc_I4, prime);
-					ilGenerator.Emit(OpCodes.Mul);
-				}
+				ilGenerator.Emit(OpCodes.Ldloc, hashCode);
+				ilGenerator.Emit(OpCodes.Ldc_I4, prime);
+				ilGenerator.Emit(OpCodes.Mul);
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
 				ilGenerator.Emit(OpCodes.Callvirt, objectGetHashCode);
-				if (!isFirst)
-					ilGenerator.Emit(OpCodes.Add);
+				ilGenerator.Emit(OpCodes.Add);
 				ilGenerator.Emit(OpCodes.Stloc, hashCode);
 				ilGenerator.MarkLabel(label);
 			}
