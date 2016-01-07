@@ -9,19 +9,19 @@ using System.Runtime.CompilerServices;
 namespace Equality {
 	internal static class Common {
 		internal static FieldInfo[] GetFields(Type type) {
-			var fields = type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-			if (type.IsDefined(typeof(ExcludeMembersByDefault)))
-				return GetFields<IncludeFieldAttribute>(fields).Concat(GetAutoPropertyBackingFields<IncludeAutoPropertyAttribute>(type)).ToArray();
-			return fields.Except(GetFields<ExcludeFieldAttribute>(fields)).Except(GetAutoPropertyBackingFields<ExcludeAutoPropertyAttribute>(type)).ToArray();
+			var includedFields = type.GetFields(MemberInclusion.Include).Concat(type.GetAutoPropertyBackingFields(MemberInclusion.Include)).Distinct();
+			var excludedFields = type.GetFields(MemberInclusion.Exclude).Concat(type.GetAutoPropertyBackingFields(MemberInclusion.Exclude)).Distinct();
+			return includedFields.Except(excludedFields).ToArray();
 		}
 
-		private static IEnumerable<FieldInfo> GetFields<TAttribute>(IEnumerable<FieldInfo> fieldInfos) {
-			return fieldInfos.Where(x => x.IsDefined(typeof(TAttribute), inherit: true));
+		private static IEnumerable<FieldInfo> GetFields(this Type type, MemberInclusion memberInclusion) {
+			return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			           .Where(x => x.GetMemberEquality<FieldEqualityAttribute>().MemberInclusion == memberInclusion);
 		}
 
-		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields<TAttribute>(Type type) where TAttribute : Attribute {
+		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields(this Type type, MemberInclusion memberInclusion) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			           .Where(x => x.IsDefined(typeof(TAttribute), inherit: true))
+			           .Where(x => x.GetMemberEquality<AutoPropertyEqualityAttribute>().MemberInclusion == memberInclusion)
 			           .Select(GetBackingField)
 			           .Where(x => x != null);
 		}
@@ -41,6 +41,18 @@ namespace Equality {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
 			           .Where(x => x.IsDefined(typeof(IncludePropertyAttribute), inherit: true))
 			           .ToArray();
+		}
+
+		internal static IIncludePropertyAttribute GetPropertyComparison(this MemberInfo memberInfo) {
+			return memberInfo.GetCustomAttribute<IncludePropertyAttribute>(inherit: true);
+		}
+
+		internal static IMemberEqualityAttribute GetMemberEquality<TMemberEqualityAttribute>(this MemberInfo memberInfo) where TMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
+			ITypeEqualityAttribute typeEqualityAttribute = memberInfo.DeclaringType.GetCustomAttribute<TypeEqualityAttribute>(inherit: true)
+				?? new TypeEqualityAttribute(MemberInclusion.Include, MemberComparison.Structural);
+			var memberEqualityAttribute = (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<TMemberEqualityAttribute>(inherit: true)
+				?? new MemberEqualityAttribute(typeEqualityAttribute.FieldInclusion, typeEqualityAttribute.MemberComparison);
+			return memberEqualityAttribute;
 		}
 
 #if DEBUG

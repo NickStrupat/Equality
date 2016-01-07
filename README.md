@@ -4,7 +4,7 @@ The last .NET equality solution you'll ever need. Automatically produces equalit
 ###TODO
 
 - ~~Handle enumerables~~
-- Revamp the attribute system for more configurability
+- ~~Revamp the attribute system for more configurability~~ (incorporate the comparison settings)
 - Optimize Dictionary structural comparison so it doesn't box value types while comparing
 - Fluent-style API for configuring fields to include/exclude
 - Fody tool to IL-weave the overrides to call the respective 'Equality' methods
