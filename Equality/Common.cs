@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,12 +17,12 @@ namespace Equality {
 
 		private static IEnumerable<FieldInfo> GetFields(this Type type, MemberInclusion memberInclusion) {
 			return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			           .Where(x => x.GetMemberEquality<FieldEqualityAttribute>().MemberInclusion == memberInclusion);
+			           .Where(x => x.GetMemberEquality().MemberInclusion == memberInclusion);
 		}
 
 		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields(this Type type, MemberInclusion memberInclusion) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			           .Where(x => x.GetMemberEquality<AutoPropertyEqualityAttribute>().MemberInclusion == memberInclusion)
+			           .Where(x => x.GetMemberEquality().MemberInclusion == memberInclusion)
 			           .Select(GetBackingField)
 			           .Where(x => x != null);
 		}
@@ -47,11 +48,30 @@ namespace Equality {
 			return memberInfo.GetCustomAttribute<IncludePropertyAttribute>(inherit: true);
 		}
 
-		internal static IMemberEqualityAttribute GetMemberEquality<TMemberEqualityAttribute>(this MemberInfo memberInfo) where TMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
+		internal static Boolean IsEnumberable(this Type memberType, out Type genericEnumerableType)
+		{
+			if (typeof (IEnumerable).IsAssignableFrom(memberType)) {
+				genericEnumerableType = memberType.GetInterfaces().SingleOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>))?.GetGenericArguments().Single();
+				if (genericEnumerableType != null)
+					return true;
+			}
+			genericEnumerableType = null;
+			return false;
+		}
+
+		private static CollectionComparison ResolveCollectionComparison(this CollectionComparison? collectionComparison) {
+			return collectionComparison.GetValueOrDefault(CollectionComparison.Structure);
+		}
+
+		internal static CollectionComparison ResolveCollectionComparison(this MemberInfo memberInfo) {
+			return memberInfo.GetMemberEquality().CollectionComparison.ResolveCollectionComparison();
+		}
+
+		internal static IMemberEqualityAttribute GetMemberEquality(this MemberInfo memberInfo) {// where TMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
 			ITypeEqualityAttribute typeEqualityAttribute = memberInfo.DeclaringType.GetCustomAttribute<TypeEqualityAttribute>(inherit: true)
-				?? new TypeEqualityAttribute(MemberInclusion.Include, MemberComparison.Structural);
-			var memberEqualityAttribute = (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<TMemberEqualityAttribute>(inherit: true)
-				?? new MemberEqualityAttribute(typeEqualityAttribute.FieldInclusion, typeEqualityAttribute.MemberComparison);
+				?? new TypeEqualityAttribute(MemberInclusion.Include, CollectionComparison.Structure);
+			var memberEqualityAttribute = memberInfo.GetCustomAttribute<MemberEqualityAttribute>(inherit: true)
+				?? new MemberEqualityAttribute(typeEqualityAttribute.FieldInclusion, typeEqualityAttribute.CollectionComparison);
 			return memberEqualityAttribute;
 		}
 

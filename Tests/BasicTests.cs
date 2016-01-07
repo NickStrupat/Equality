@@ -9,6 +9,8 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 namespace Tests {
 	[TestClass]
 	public class BasicTests {
+		const Int32 prime = -1521134295;
+		const Int32 seed = 1374496523;
 #if DEBUG
 		[TestInitialize()]
 		public void Initialize() { }
@@ -66,9 +68,8 @@ namespace Tests {
 
 			public override Int32 GetHashCode() {
 				unchecked {
-					const Int32 prime = 486187739;
-					Int32 hashCode;
-					hashCode = a.GetHashCode();
+					Int32 hashCode = seed;
+					hashCode = hashCode * prime + a.GetHashCode();
 					var b = this.b;
 					if (b != null)
 						hashCode = hashCode * prime + b.GetHashCode();
@@ -81,6 +82,7 @@ namespace Tests {
 			}
 		}
 
+		[TypeEquality(MemberInclusion.Include, CollectionComparison.Reference)]
 		class Bar : IEquatable<Bar> {
 			public Foo Foo;
 			public String Text { get; set; }
@@ -117,23 +119,29 @@ namespace Tests {
 					if (!ReferenceEquals(numbers2, null))
 						return false;
 				}
-				else if (!numbers.SequenceEqual(numbers2, StructEqualityComparer<Int32>.Default))
+				else if (!numbers.Equals(numbers2))
 					return false;
+				//else if (!numbers.SequenceEqual(numbers2, StructEqualityComparer<Int32>.Default))
+				//	return false;
 				return true;
 			}
 
 			public override Int32 GetHashCode() {
 				unchecked {
-					const Int32 prime = 486187739;
-					Int32 hashCode;
-					hashCode = Foo.GetHashCode();
+					Int32 hashCode = seed;
+					hashCode = hashCode * prime + Foo.GetHashCode();
 					var text = this.Text;
 					if (text != null)
 						hashCode = hashCode * prime + text.GetHashCode();
 					hashCode = hashCode * prime + Number.GetHashCode();
 					var numbers = this.Numbers;
-					if (numbers != null)
+					if (numbers != null) {
 						hashCode = hashCode * prime + numbers.GetHashCode();
+						//var numbersHashCode = seed;
+						//for (var i = 0; i != numbers.Length; ++i)
+						//	numbersHashCode = numbersHashCode*prime + numbers[i].GetHashCode();
+						//hashCode = hashCode * prime + numbersHashCode;
+					}
 					return hashCode;
 				}
 			}
@@ -155,9 +163,8 @@ namespace Tests {
 
 			public override Int32 GetHashCode() {
 				unchecked {
-					const Int32 prime = 486187739;
-					Int32 hashCode;
-					hashCode = base.GetHashCode();
+					Int32 hashCode = seed;
+					hashCode = hashCode * prime + base.GetHashCode();
 					var yep = this.Yep;
 					if (yep != null)
 						hashCode = hashCode * prime + yep.GetHashCode();
