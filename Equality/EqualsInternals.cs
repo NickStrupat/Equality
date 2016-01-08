@@ -31,7 +31,7 @@ namespace Equality {
 			try {
 				var dictionary = first as IDictionary;
 				if (dictionary != null)
-					return DictionaryEquals(dictionary, (IDictionary) second);
+					return DictionaryEqualsCache.GetFunc(dictionary)?.Invoke(dictionary, (IDictionary) second) ?? DictionaryEquals(dictionary, (IDictionary) second);
 
 				var array = first as T[];
 				if (array != null)
@@ -58,6 +58,45 @@ namespace Equality {
 				if (!comparer.Equals(first[i], second[i]))
 					return false;
 			return true;
+		}
+
+		private static class DictionaryEqualsCache {
+			public delegate Boolean DictionaryEquals(IDictionary first, IDictionary second);
+			private static readonly ConcurrentDictionary<Type, DictionaryEquals> Cache = new ConcurrentDictionary<Type, DictionaryEquals>();
+			public static DictionaryEquals GetFunc(IDictionary dict) {
+				return Cache.GetOrAdd(dict.GetType(), type => {
+					var gtas = type.GenericTypeArguments;
+					if (!gtas.Any())
+						return null;
+					var keyType = gtas[0];
+					var valueType = gtas[1];
+					var dm = new DynamicMethod(String.Empty, typeof(Boolean), new[] { typeof(IDictionary), typeof(IDictionary) }, typeof(DictionaryEqualsCache).Module, skipVisibility: true);
+					var ilg = dm.GetILGenerator();
+					ilg.Emit(OpCodes.Ldarg_0);
+					ilg.Emit(OpCodes.Ldarg_1);
+					ilg.Emit(OpCodes.Call, typeof(DictionaryEqualsCache).GetMethod(nameof(DictionaryEqualsImpl), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(keyType, valueType));
+					ilg.Emit(OpCodes.Ret);
+					return (DictionaryEquals) dm.CreateDelegate(typeof(DictionaryEquals));
+				});
+			}
+
+			static Boolean DictionaryEqualsImpl<TKey, TValue>(IDictionary<TKey, TValue> first, IDictionary<TKey, TValue> second) {
+				if (first.Count != second.Count)
+					return false;
+				var firstKeys = first.Keys.OrderBy(x => x);
+				var secondKeys = second.Keys.OrderBy(x => x);
+				if (!firstKeys.SequenceEqual(secondKeys))
+					return false;
+				try {
+					foreach (var key in firstKeys)
+						if (!first[key].Equals(second[key]))
+							return false;
+				}
+				catch (KeyNotFoundException) {
+					return false;
+				}
+				return true;
+			}
 		}
 
 		private static Boolean DictionaryEquals(IDictionary first, IDictionary second) {
