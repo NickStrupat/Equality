@@ -28,25 +28,33 @@ namespace Equality {
 		private static readonly ConcurrentDictionary<Type, ClassEquals<Object>> DynamicCache = new ConcurrentDictionary<Type, ClassEquals<Object>>();
 
 		private static Boolean EnumerableEquals<T>(IEnumerable<T> first, IEnumerable<T> second) {
-			var dictionary = first as IDictionary;
-			if (dictionary != null)
-				return DictionaryEquals(dictionary, (IDictionary) second);
-			if (first is IList<T>)
-				return ArrayEquals(first, second);
-			if (first is IStructuralEquatable)
-				return StructuralComparisons.StructuralEqualityComparer.Equals(first, second);
-			return first.SequenceEqual(second);
+			try {
+				var dictionary = first as IDictionary;
+				if (dictionary != null)
+					return DictionaryEquals(dictionary, (IDictionary) second);
+
+				var array = first as T[];
+				if (array != null)
+					return ArrayEquals(array, (T[]) second);
+
+				if (first is IStructuralEquatable)
+					return StructuralComparisons.StructuralEqualityComparer.Equals(first, second);
+
+				return first.SequenceEqual(second);
+			}
+			catch (InvalidOperationException) { // Catch any colection changes while enumerating
+				return false;
+			}
 		}
 
 		private static Boolean EnumerableStructEquals<T>(IEnumerable<T> first, IEnumerable<T> second) where T : struct => first.SequenceEqual(second, StructEqualityComparer<T>.Default);
 		private static Boolean EnumerableClassEquals<T>(IEnumerable<T> first, IEnumerable<T> second) where T : class => first.SequenceEqual(second, ClassEqualityComparer<T>.Default);
-
-		private static Boolean ArrayEquals<T>(IEnumerable<T> first, IEnumerable<T> second) => ArrayEquals((IList<T>) first, (IList<T>) second);
-		private static Boolean ArrayEquals<T>(IList<T> first, IList<T> second) {
-			if (first.Count != second.Count)
+		
+		private static Boolean ArrayEquals<T>(T[] first, T[] second) {
+			if (first.Length != second.Length)
 				return false;
 			var comparer = EqualityComparer<T>.Default;
-			for (var i = 0; i < first.Count; i++)
+			for (var i = 0; i < first.Length; i++)
 				if (!comparer.Equals(first[i], second[i]))
 					return false;
 			return true;
@@ -59,9 +67,14 @@ namespace Equality {
 			var secondKeys = second.Keys.Cast<Object>().OrderBy(x => x);
 			if (!firstKeys.SequenceEqual(secondKeys))
 				return false;
-			foreach (var key in firstKeys)
-				if (!first[key].Equals(second[key]))
-					return false;
+			try {
+				foreach (var key in firstKeys)
+					if (!first[key].Equals(second[key]))
+						return false;
+			}
+			catch (KeyNotFoundException) {
+				return false;
+			}
 			return true;
 		}
 
@@ -83,25 +96,23 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
 
-			var returnTrue = ilGenerator.DefineLabel();
 			var firstMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
 			var secondMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
 
 			var fields = Common.GetFields(type);
 			foreach (var field in fields) {
 				var nextField = ilGenerator.DefineLabel();
-				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, returnTrue, nextField);
+				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, field, field.FieldType, nextField);
 				ilGenerator.MarkLabel(nextField);
 			}
 
 			var properties = Common.GetProperties(type);
 			foreach (var property in properties) {
 				var nextProperty = ilGenerator.DefineLabel();
-				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, returnTrue, nextProperty);
+				EmitMemberEqualityComparison(ilGenerator, firstMemberLocalMap, secondMemberLocalMap, loadFirstInstance, loadSecondInstance, property, property.PropertyType, nextProperty);
 				ilGenerator.MarkLabel(nextProperty);
 			}
 
-			ilGenerator.MarkLabel(returnTrue);
 			ilGenerator.Emit(OpCodes.Ldc_I4_1);
 			ilGenerator.Emit(OpCodes.Ret);
 		}
@@ -113,7 +124,6 @@ namespace Equality {
 														 Action<ILGenerator> loadSecondInstance,
 														 MemberInfo memberInfo,
 														 Type memberType,
-														 Label returnTrue,
 														 Label nextMember) {
 			Action<ILGenerator> emitLoadFirstMember;
 			Action<ILGenerator> emitLoadSecondMember;

@@ -60,7 +60,7 @@ namespace Equality {
 			foreach (var key in keys) {
 				var b = key;
 				if (b != null)
-					hashCode = hashCode*prime + b.GetHashCode();
+					hashCode = hashCode * prime + b.GetHashCode();
 				var c = dictionary[key];
 				if (c != null)
 					hashCode = hashCode * prime + c.GetHashCode();
@@ -92,9 +92,7 @@ namespace Equality {
 				var field = fields[i];
 				Action<ILGenerator> loadValueTypeMember = ilg => ilg.Emit(OpCodes.Ldflda, field);
 				Action<ILGenerator> loadReferenceTypeMember = ilg => ilg.Emit(OpCodes.Ldfld, field);
-				var isFirst = i == 0;
-
-				EmitMemberIL(ilGenerator, prime, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, field, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, prime, hashCode, loadInstanceOpCode, loadValueTypeMember, field, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
 			}
 
 			var properties = Common.GetProperties(type);
@@ -102,9 +100,7 @@ namespace Equality {
 				var property = properties[i];
 				Action<ILGenerator> loadValueTypeMember = ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic: true));
 				Action<ILGenerator> loadReferenceTypeMember = loadValueTypeMember;
-				var isFirst = i == 0 && !fields.Any();
-
-				EmitMemberIL(ilGenerator, prime, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, prime, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
 			}
 
 			ilGenerator.Emit(OpCodes.Ldloc, hashCode);
@@ -112,15 +108,14 @@ namespace Equality {
 		}
 
 		private static void EmitMemberIL(ILGenerator ilGenerator,
-			                                Int32 prime,
-			                                Boolean isFirst,
-			                                LocalBuilder hashCode,
-			                                Action<ILGenerator> loadInstanceOpCode,
-			                                Action<ILGenerator> loadValueTypeMember,
-			                                MemberInfo memberInfo,
-			                                Type memberType,
-			                                Action<ILGenerator> loadReferenceTypeMember,
-			                                MethodInfo objectGetHashCode) {
+			                             Int32 prime,
+			                             LocalBuilder hashCode,
+			                             Action<ILGenerator> loadInstanceOpCode,
+			                             Action<ILGenerator> loadValueTypeMember,
+			                             MemberInfo memberInfo,
+			                             Type memberType,
+			                             Action<ILGenerator> loadReferenceTypeMember,
+			                             MethodInfo objectGetHashCode) {
 			Type t;
 			if (memberType.IsValueType) {
 				ilGenerator.Emit(OpCodes.Ldloc, hashCode);
