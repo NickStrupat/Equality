@@ -87,6 +87,7 @@ namespace Tests {
 			public Foo Foo;
 			public String Text { get; set; }
 			public Int64 Number;
+			[FieldEquality(MemberInclusion.Include, CollectionComparison.Reference)]
 			public Int32[] Numbers = {1, 2, 3};
 
 			public override Boolean Equals(Object obj) => Equals(obj as Bar);
@@ -202,12 +203,12 @@ namespace Tests {
 			var bar3 = new Bar { Text = "What" };
 			var bar4 = new Bar { Text = "Who" };
 			Assert.IsTrue(bar.Equals(bar));
-			Assert.IsTrue(bar.Equals(bar2));
+			Assert.IsTrue(!bar.Equals(bar2));
 			Assert.IsFalse(bar.Equals(bar3));
 			Assert.IsFalse(bar.Equals(bar4));
 
 			Assert.IsTrue( Class.Equals(bar, bar));
-			Assert.IsTrue( Class.Equals(bar, bar2));
+			Assert.IsTrue( !Class.Equals(bar, bar2));
 			Assert.IsFalse(Class.Equals(bar, bar3));
 			Assert.IsFalse(Class.Equals(bar, bar4));
 

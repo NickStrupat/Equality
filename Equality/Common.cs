@@ -48,7 +48,7 @@ namespace Equality {
 			return memberInfo.GetCustomAttribute<IncludePropertyAttribute>(inherit: true);
 		}
 
-		internal static Boolean IsEnumberable(this Type memberType, out Type genericEnumerableType)
+		internal static Boolean IsEnumerable(this Type memberType, out Type genericEnumerableType)
 		{
 			if (typeof (IEnumerable).IsAssignableFrom(memberType)) {
 				genericEnumerableType = memberType.GetInterfaces().SingleOrDefault(x => x.IsGenericType && x.GetGenericTypeDefinition() == typeof(IEnumerable<>))?.GetGenericArguments().Single();
@@ -57,6 +57,11 @@ namespace Equality {
 			}
 			genericEnumerableType = null;
 			return false;
+		}
+
+		internal static Boolean ShouldGetStructuralHashCode(this MemberInfo memberInfo, Type memberType, out Type genericEnumerableType) {
+			genericEnumerableType = null;
+			return memberInfo.ResolveCollectionComparison() == CollectionComparison.Structure && memberType != typeof(String) && memberType.IsEnumerable(out genericEnumerableType);
 		}
 
 		private static CollectionComparison ResolveCollectionComparison(this CollectionComparison? collectionComparison) {

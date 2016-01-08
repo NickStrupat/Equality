@@ -94,7 +94,7 @@ namespace Equality {
 				Action<ILGenerator> loadReferenceTypeMember = ilg => ilg.Emit(OpCodes.Ldfld, field);
 				var isFirst = i == 0;
 
-				EmitMemberIL(ilGenerator, prime, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, prime, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, field, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
 			}
 
 			var properties = Common.GetProperties(type);
@@ -104,7 +104,7 @@ namespace Equality {
 				Action<ILGenerator> loadReferenceTypeMember = loadValueTypeMember;
 				var isFirst = i == 0 && !fields.Any();
 
-				EmitMemberIL(ilGenerator, prime, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, prime, isFirst, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
 			}
 
 			ilGenerator.Emit(OpCodes.Ldloc, hashCode);
@@ -117,6 +117,7 @@ namespace Equality {
 			                                LocalBuilder hashCode,
 			                                Action<ILGenerator> loadInstanceOpCode,
 			                                Action<ILGenerator> loadValueTypeMember,
+			                                MemberInfo memberInfo,
 			                                Type memberType,
 			                                Action<ILGenerator> loadReferenceTypeMember,
 			                                MethodInfo objectGetHashCode) {
@@ -127,7 +128,7 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Mul);
 				loadInstanceOpCode(ilGenerator);
 				loadValueTypeMember(ilGenerator);
-				if (memberType != typeof(String) && memberType.IsEnumberable(out t))
+				if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
 					ilGenerator.Emit(OpCodes.Call, typeof(GetHashCodeInternals).GetMethod(nameof(GetEnumerableHashCode), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t));
 				else
 					ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(GetHashCode), Type.EmptyTypes));
@@ -146,7 +147,7 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Ldc_I4, prime);
 				ilGenerator.Emit(OpCodes.Mul);
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
-				if (memberType != typeof(String) && memberType.IsEnumberable(out t))
+				if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
 					ilGenerator.Emit(OpCodes.Call, typeof(GetHashCodeInternals).GetMethod(nameof(GetEnumerableHashCode), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t));
 				else
 					ilGenerator.Emit(OpCodes.Callvirt, objectGetHashCode);
