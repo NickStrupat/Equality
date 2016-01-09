@@ -140,7 +140,7 @@ namespace Equality {
 						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
 					}
 					if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
-						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof(EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(memberType, t)));
+						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof(EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t)));
 					else
 						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] { typeof(Object) })));
 				}
@@ -158,12 +158,12 @@ namespace Equality {
 		}
 
 		private static void SetEmitLoadAndCompareForReferenceType(ConcurrentDictionary<Type, LocalBuilder> firstMemberLocalMap,
-																  ConcurrentDictionary<Type, LocalBuilder> secondMemberLocalMap,
-																  Type memberType,
-																  Label nextMember,
-																  ref Action<ILGenerator> emitLoadFirstMember,
-																  ref Action<ILGenerator> emitLoadSecondMember,
-																  ref Action<ILGenerator> emitComparison) {
+			                                                      ConcurrentDictionary<Type, LocalBuilder> secondMemberLocalMap,
+			                                                      Type memberType,
+			                                                      Label nextMember,
+			                                                      ref Action<ILGenerator> emitLoadFirstMember,
+			                                                      ref Action<ILGenerator> emitLoadSecondMember,
+			                                                      ref Action<ILGenerator> emitComparison) {
 			LocalBuilder firstLocal = null;
 			emitLoadFirstMember = emitLoadFirstMember.CombineDelegates(ilg => {
 				firstLocal = firstMemberLocalMap.GetOrAdd(memberType, ilg.DeclareLocal);
