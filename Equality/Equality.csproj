@@ -47,6 +47,7 @@
     <Compile Include="Class.cs" />
     <Compile Include="ClassEqualityComparer.cs" />
     <Compile Include="Common.cs" />
+    <Compile Include="DictionaryComparer.cs" />
     <Compile Include="EqualsInternals.cs" />
     <Compile Include="GetHashCodeInternals.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

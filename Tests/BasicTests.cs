@@ -87,7 +87,7 @@ namespace Tests {
 			public Foo Foo;
 			public String Text { get; set; }
 			public Int64 Number;
-			[FieldEquality(MemberInclusion.Include, CollectionComparison.Reference)]
+			[FieldEquality(MemberInclusion.Include, CollectionComparison.Structure)]
 			public Int32[] Numbers = {1, 2, 3};
 
 			public override Boolean Equals(Object obj) => Equals(obj as Bar);
@@ -120,10 +120,10 @@ namespace Tests {
 					if (!ReferenceEquals(numbers2, null))
 						return false;
 				}
-				else if (!numbers.Equals(numbers2))
-					return false;
-				//else if (!numbers.SequenceEqual(numbers2, StructEqualityComparer<Int32>.Default))
+				//else if (!numbers.Equals(numbers2))
 				//	return false;
+				else if (!numbers.SequenceEqual(numbers2, StructEqualityComparer<Int32>.Default))
+					return false;
 				return true;
 			}
 
@@ -137,11 +137,11 @@ namespace Tests {
 					hashCode = hashCode * prime + Number.GetHashCode();
 					var numbers = this.Numbers;
 					if (numbers != null) {
-						hashCode = hashCode * prime + numbers.GetHashCode();
-						//var numbersHashCode = seed;
-						//for (var i = 0; i != numbers.Length; ++i)
-						//	numbersHashCode = numbersHashCode*prime + numbers[i].GetHashCode();
-						//hashCode = hashCode * prime + numbersHashCode;
+						//hashCode = hashCode * prime + numbers.GetHashCode();
+						var numbersHashCode = seed;
+						for (var i = 0; i != numbers.Length; ++i)
+							numbersHashCode = numbersHashCode * prime + numbers[i].GetHashCode();
+						hashCode = hashCode * prime + numbersHashCode;
 					}
 					return hashCode;
 				}
@@ -203,12 +203,12 @@ namespace Tests {
 			var bar3 = new Bar { Text = "What" };
 			var bar4 = new Bar { Text = "Who" };
 			Assert.IsTrue(bar.Equals(bar));
-			Assert.IsTrue(!bar.Equals(bar2));
+			Assert.IsTrue(bar.Equals(bar2));
 			Assert.IsFalse(bar.Equals(bar3));
 			Assert.IsFalse(bar.Equals(bar4));
 
 			Assert.IsTrue( Class.Equals(bar, bar));
-			Assert.IsTrue( !Class.Equals(bar, bar2));
+			Assert.IsTrue( Class.Equals(bar, bar2));
 			Assert.IsFalse(Class.Equals(bar, bar3));
 			Assert.IsFalse(Class.Equals(bar, bar4));
 

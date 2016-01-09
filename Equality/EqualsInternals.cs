@@ -31,89 +31,29 @@ namespace Equality {
 			try {
 				var dictionary = first as IDictionary;
 				if (dictionary != null)
-					return DictionaryEqualsCache.GetFunc(dictionary)?.Invoke(dictionary, (IDictionary) second) ?? DictionaryEquals(dictionary, (IDictionary) second);
+					return DictionaryComparer.Equals(dictionary, (IDictionary) second);
 
-				var array = first as T[];
-				if (array != null)
-					return ArrayEquals(array, (T[]) second);
+				var list = first as IList<T>;
+				if (list != null)
+					return ArrayEquals(list, (IList<T>) second);
 
 				if (first is IStructuralEquatable)
 					return StructuralComparisons.StructuralEqualityComparer.Equals(first, second);
 
 				return first.SequenceEqual(second);
 			}
-			catch (InvalidOperationException) { // Catch any colection changes while enumerating
+			catch (InvalidOperationException) { // Catch any collection changes while enumerating
 				return false;
 			}
 		}
-
-		private static Boolean EnumerableStructEquals<T>(IEnumerable<T> first, IEnumerable<T> second) where T : struct => first.SequenceEqual(second, StructEqualityComparer<T>.Default);
-		private static Boolean EnumerableClassEquals<T>(IEnumerable<T> first, IEnumerable<T> second) where T : class => first.SequenceEqual(second, ClassEqualityComparer<T>.Default);
 		
-		private static Boolean ArrayEquals<T>(T[] first, T[] second) {
-			if (first.Length != second.Length)
-				return false;
-			var comparer = EqualityComparer<T>.Default;
-			for (var i = 0; i < first.Length; i++)
-				if (!comparer.Equals(first[i], second[i]))
-					return false;
-			return true;
-		}
-
-		private static class DictionaryEqualsCache {
-			public delegate Boolean DictionaryEquals(IDictionary first, IDictionary second);
-			private static readonly ConcurrentDictionary<Type, DictionaryEquals> Cache = new ConcurrentDictionary<Type, DictionaryEquals>();
-			public static DictionaryEquals GetFunc(IDictionary dict) {
-				return Cache.GetOrAdd(dict.GetType(), type => {
-					var gtas = type.GenericTypeArguments;
-					if (!gtas.Any())
-						return null;
-					var keyType = gtas[0];
-					var valueType = gtas[1];
-					var dm = new DynamicMethod(String.Empty, typeof(Boolean), new[] { typeof(IDictionary), typeof(IDictionary) }, typeof(DictionaryEqualsCache).Module, skipVisibility: true);
-					var ilg = dm.GetILGenerator();
-					ilg.Emit(OpCodes.Ldarg_0);
-					ilg.Emit(OpCodes.Ldarg_1);
-					ilg.Emit(OpCodes.Call, typeof(DictionaryEqualsCache).GetMethod(nameof(DictionaryEqualsImpl), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(keyType, valueType));
-					ilg.Emit(OpCodes.Ret);
-					return (DictionaryEquals) dm.CreateDelegate(typeof(DictionaryEquals));
-				});
-			}
-
-			static Boolean DictionaryEqualsImpl<TKey, TValue>(IDictionary<TKey, TValue> first, IDictionary<TKey, TValue> second) {
-				if (first.Count != second.Count)
-					return false;
-				var firstKeys = first.Keys.OrderBy(x => x);
-				var secondKeys = second.Keys.OrderBy(x => x);
-				if (!firstKeys.SequenceEqual(secondKeys))
-					return false;
-				try {
-					foreach (var key in firstKeys)
-						if (!first[key].Equals(second[key]))
-							return false;
-				}
-				catch (KeyNotFoundException) {
-					return false;
-				}
-				return true;
-			}
-		}
-
-		private static Boolean DictionaryEquals(IDictionary first, IDictionary second) {
+		private static Boolean ArrayEquals<T>(IList<T> first, IList<T> second) {
 			if (first.Count != second.Count)
 				return false;
-			var firstKeys = first.Keys.Cast<Object>().OrderBy(x => x);
-			var secondKeys = second.Keys.Cast<Object>().OrderBy(x => x);
-			if (!firstKeys.SequenceEqual(secondKeys))
-				return false;
-			try {
-				foreach (var key in firstKeys)
-					if (!first[key].Equals(second[key]))
-						return false;
-			}
-			catch (KeyNotFoundException) {
-				return false;
-			}
+			var comparer = EqualityComparer<T>.Default;
+			for (var i = 0; i < first.Count; i++)
+				if (!comparer.Equals(first[i], second[i]))
+					return false;
 			return true;
 		}
 
@@ -200,7 +140,7 @@ namespace Equality {
 						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
 					}
 					if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
-						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof(EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t)));
+						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof(EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(memberType, t)));
 					else
 						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] { typeof(Object) })));
 				}

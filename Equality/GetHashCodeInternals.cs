@@ -9,6 +9,10 @@ using System.Security.Cryptography.X509Certificates;
 
 namespace Equality {
 	internal static class GetHashCodeInternals {
+		//const Int32 Prime = 486187739; // number from http://stackoverflow.com/a/2816747/232574
+		internal const Int32 Prime = -1521134295; // http://stackoverflow.com/questions/371328/why-is-it-important-to-override-gethashcode-when-equals-method-is-overridden#comment271215_371348
+		internal const Int32 Seed = 1374496523;   // ^^^
+
 		internal delegate Int32 GetStructHashCode<T>(ref T x) where T : struct;
 		internal delegate Int32 GetClassHashCode<in T>(T x) where T : class;
 
@@ -28,49 +32,53 @@ namespace Equality {
 
 		private static readonly ConcurrentDictionary<Type, GetClassHashCode<Object>> DynamicCache = new ConcurrentDictionary<Type, GetClassHashCode<Object>>();
 
-		private static Int32 GetEnumerableHashCode<T>(IEnumerable<T> x) {
-			var dictionary = x as IDictionary;
+		private static Int32 GetEnumerableOfClassHashCode<T>(IEnumerable<T> enumerable) where T : class {
+			var maybeHashCode = GetSpecializedEnumerableHashCode(enumerable);
+			if (maybeHashCode != null)
+				return maybeHashCode.GetValueOrDefault();
+			
+			Int32 hashCode = Seed;
+			foreach (var x in enumerable)
+				if (!ReferenceEquals(x, null))
+					hashCode = hashCode * Prime + x.GetHashCode();
+			return hashCode;
+		}
+
+		private static Int32 GetEnumerableOfStructHashCode<T>(IEnumerable<T> enumerable) where T : struct {
+			var maybeHashCode = GetSpecializedEnumerableHashCode(enumerable);
+			if (maybeHashCode != null)
+				return maybeHashCode.GetValueOrDefault();
+
+			Int32 hashCode = Seed;
+			foreach (var x in enumerable)
+				hashCode = hashCode * Prime + x.GetHashCode();
+			return hashCode;
+		}
+
+		private static Int32? GetSpecializedEnumerableHashCode<T>(IEnumerable<T> enumerable) {
+			var dictionary = enumerable as IDictionary;
 			if (dictionary != null)
-				return GetDictionaryHashCode(dictionary);
-			var list = x as IList<T>;
+				return DictionaryComparer.GetHashCode(dictionary);
+
+			var list = enumerable as IList<T>;
 			if (list != null)
 				return GetArrayHashCode(list);
-			if (x is IStructuralEquatable)
-				return StructuralComparisons.StructuralEqualityComparer.GetHashCode(x);
-			Int32 hashCode = seed;
-			foreach (var a in x)
-				if (a != null)
-					hashCode = hashCode * prime + a.GetHashCode();
-			return hashCode;
+
+			if (enumerable is IStructuralEquatable)
+				return StructuralComparisons.StructuralEqualityComparer.GetHashCode(enumerable);
+
+			return null;
 		}
 
 		private static Int32 GetArrayHashCode<T>(IList<T> list) {
-			Int32 hashCode = seed;
+			Int32 hashCode = Seed;
 			for (var i = 0; i != list.Count; ++i) {
 				var a = list[i];
 				if (a != null)
-					hashCode = hashCode * prime + a.GetHashCode();
+					hashCode = hashCode * Prime + a.GetHashCode();
 			}
 			return hashCode;
 		}
-
-		private static Int32 GetDictionaryHashCode(IDictionary dictionary) {
-			Int32 hashCode = seed;
-			var keys = dictionary.Keys.Cast<Object>().OrderBy(x => x);
-			foreach (var key in keys) {
-				var b = key;
-				if (b != null)
-					hashCode = hashCode * prime + b.GetHashCode();
-				var c = dictionary[key];
-				if (c != null)
-					hashCode = hashCode * prime + c.GetHashCode();
-			}
-			return hashCode;
-		}
-
-		//const Int32 prime = 486187739; // number from http://stackoverflow.com/a/2816747/232574
-		const Int32 prime = -1521134295; // http://stackoverflow.com/questions/371328/why-is-it-important-to-override-gethashcode-when-equals-method-is-overridden#comment271215_371348
-		const Int32 seed = 1374496523;   // ^^^
 
 		private static void GenerateIL<T>(Type type, ILGenerator ilGenerator) {
 			Action<ILGenerator> loadInstanceOpCode = i => i.Emit(OpCodes.Ldarg_0);
@@ -84,7 +92,7 @@ namespace Equality {
 
 			var objectGetHashCode = typeof (Object).GetMethod(nameof(GetHashCode), Type.EmptyTypes);
 			var hashCode = ilGenerator.DeclareLocal(typeof (Int32));
-			ilGenerator.Emit(OpCodes.Ldc_I4, seed);
+			ilGenerator.Emit(OpCodes.Ldc_I4, Seed);
 			ilGenerator.Emit(OpCodes.Stloc, hashCode);
 
 			var fields = Common.GetFields(type);
@@ -92,7 +100,7 @@ namespace Equality {
 				var field = fields[i];
 				Action<ILGenerator> loadValueTypeMember = ilg => ilg.Emit(OpCodes.Ldflda, field);
 				Action<ILGenerator> loadReferenceTypeMember = ilg => ilg.Emit(OpCodes.Ldfld, field);
-				EmitMemberIL(ilGenerator, prime, hashCode, loadInstanceOpCode, loadValueTypeMember, field, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, Prime, hashCode, loadInstanceOpCode, loadValueTypeMember, field, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
 			}
 
 			var properties = Common.GetProperties(type);
@@ -100,7 +108,7 @@ namespace Equality {
 				var property = properties[i];
 				Action<ILGenerator> loadValueTypeMember = ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic: true));
 				Action<ILGenerator> loadReferenceTypeMember = loadValueTypeMember;
-				EmitMemberIL(ilGenerator, prime, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, Prime, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
 			}
 
 			ilGenerator.Emit(OpCodes.Ldloc, hashCode);
@@ -124,7 +132,7 @@ namespace Equality {
 				loadInstanceOpCode(ilGenerator);
 				loadValueTypeMember(ilGenerator);
 				if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
-					ilGenerator.Emit(OpCodes.Call, typeof(GetHashCodeInternals).GetMethod(nameof(GetEnumerableHashCode), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t));
+					ilGenerator.Emit(OpCodes.Call, MakeGenericGetEnumerableHashCodeMethod(t));
 				else
 					ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(GetHashCode), Type.EmptyTypes));
 				ilGenerator.Emit(OpCodes.Add);
@@ -143,13 +151,18 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Mul);
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
 				if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
-					ilGenerator.Emit(OpCodes.Call, typeof(GetHashCodeInternals).GetMethod(nameof(GetEnumerableHashCode), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t));
+					ilGenerator.Emit(OpCodes.Call, MakeGenericGetEnumerableHashCodeMethod(t));
 				else
 					ilGenerator.Emit(OpCodes.Callvirt, objectGetHashCode);
 				ilGenerator.Emit(OpCodes.Add);
 				ilGenerator.Emit(OpCodes.Stloc, hashCode);
 				ilGenerator.MarkLabel(label);
 			}
+		}
+
+		private static MethodInfo MakeGenericGetEnumerableHashCodeMethod(Type t) {
+			var methodName = t.IsValueType ? nameof(GetEnumerableOfStructHashCode) : nameof(GetEnumerableOfClassHashCode);
+			return typeof(GetHashCodeInternals).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t);
 		}
 	}
 }
