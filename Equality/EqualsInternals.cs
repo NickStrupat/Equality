@@ -75,6 +75,25 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
 
+			if (typeof(T).IsValueType) { // Check for reference equality of the structs
+				var typedReferenceValueFieldInfo = typeof(TypedReference).GetField("Value", BindingFlags.NonPublic | BindingFlags.Instance);
+
+				ilGenerator.Emit(OpCodes.Ldarg_0);
+				ilGenerator.Emit(OpCodes.Mkrefany, typeof(T));
+				ilGenerator.Emit(OpCodes.Ldfld, typedReferenceValueFieldInfo);
+
+				ilGenerator.Emit(OpCodes.Ldarg_1);
+				ilGenerator.Emit(OpCodes.Mkrefany, typeof(T));
+				ilGenerator.Emit(OpCodes.Ldfld, typedReferenceValueFieldInfo);
+
+				ilGenerator.Emit(OpCodes.Call, typeof(IntPtr).GetMethod("op_Equality", new[] { typeof(IntPtr), typeof(IntPtr) }));
+				var referenceNotEqual = ilGenerator.DefineLabel();
+				ilGenerator.Emit(OpCodes.Brfalse, referenceNotEqual);
+				ilGenerator.Emit(OpCodes.Ldc_I4_1);
+				ilGenerator.Emit(OpCodes.Ret);
+				ilGenerator.MarkLabel(referenceNotEqual);
+			}
+
 			var firstMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
 			var secondMemberLocalMap = new ConcurrentDictionary<Type, LocalBuilder>();
 
