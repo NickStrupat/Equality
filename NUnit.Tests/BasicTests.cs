@@ -81,8 +81,8 @@ namespace NUnit.Tests {
 				}
 			}
 		}
-
-		[TypeEquality(MemberInclusion.Include, CollectionComparison.Reference)]
+		
+		[MemberEquality(MemberInclusion.Include, CollectionComparison.Instance)]
 		class Bar : IEquatable<Bar> {
 			public Foo Foo;
 			public String Text { get; set; }

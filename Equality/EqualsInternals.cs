@@ -12,7 +12,7 @@ namespace Equality {
 		internal delegate Boolean ClassEquals<in T>(T x, T y) where T : class;
 
 		internal static class StaticStructCache<T> where T : struct {
-			public static readonly StructEquals<T> Func = GetStructEqualsFunc<T>(typeof(T));
+			public static readonly StructEquals<T> Func = GetStructEqualsFunc<T>();
 		}
 
 		internal static class StaticClassCache<T> where T : class {
@@ -21,7 +21,7 @@ namespace Equality {
 
 		internal static ClassEquals<Object> GetDynamicClassEquals(Type type) => DynamicCache.GetOrAdd(type, GetClassEqualsFunc<Object>);
 
-		private static StructEquals<T> GetStructEqualsFunc<T>(Type type) where T : struct => Common.GenerateIL<StructEquals<T>>(GenerateIL<T>, type);
+		private static StructEquals<T> GetStructEqualsFunc<T>() where T : struct => Common.GenerateIL<StructEquals<T>>(GenerateIL<T>, typeof(T));
 
 		private static ClassEquals<T> GetClassEqualsFunc<T>(Type type) where T : class => Common.GenerateIL<ClassEquals<T>>(GenerateIL<T>, type);
 
@@ -75,7 +75,7 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
 
-			if (typeof(T).IsValueType) { // Check for reference equality of the structs
+			if (typeof(T).IsValueType) { // ReferenceEquals for value types
 				var typedReferenceValueFieldInfo = typeof(TypedReference).GetField("Value", BindingFlags.NonPublic | BindingFlags.Instance);
 
 				ilGenerator.Emit(OpCodes.Ldarg_0);
@@ -158,7 +158,7 @@ namespace Equality {
 					else {
 						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
 					}
-					if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
+					if (memberInfo.ShouldGetStructural(memberType, out t))
 						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof(EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t)));
 					else
 						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] { typeof(Object) })));

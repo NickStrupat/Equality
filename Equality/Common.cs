@@ -6,6 +6,7 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 
 namespace Equality {
 	internal static class Common {
@@ -23,23 +24,13 @@ namespace Equality {
 		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields(this Type type, MemberInclusion memberInclusion) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
 			           .Where(x => x.GetMemberEquality().MemberInclusion == memberInclusion)
-			           .Select(GetBackingField)
+			           .Select(AutoPropertyExtensions.GetBackingField)
 			           .Where(x => x != null);
-		}
-
-		private static FieldInfo GetBackingField(PropertyInfo pi) {
-			if (!pi.CanRead || !pi.GetGetMethod(nonPublic:true).IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
-				return null;
-			var backingField = pi.DeclaringType?.GetField($"<{pi.Name}>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic);
-			if (backingField == null)
-				return null;
-			if (!backingField.IsDefined(typeof(CompilerGeneratedAttribute), inherit:true))
-				return null;
-			return backingField;
 		}
 
 		internal static PropertyInfo[] GetProperties(Type type) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			           .Where(x => !x.IsAnAutoProperty())
 			           .Where(x => x.IsDefined(typeof(IncludePropertyAttribute), inherit: true))
 			           .ToArray();
 		}
@@ -59,7 +50,7 @@ namespace Equality {
 			return false;
 		}
 
-		internal static Boolean ShouldGetStructuralHashCode(this MemberInfo memberInfo, Type memberType, out Type genericEnumerableType) {
+		internal static Boolean ShouldGetStructural(this MemberInfo memberInfo, Type memberType, out Type genericEnumerableType) {
 			genericEnumerableType = null;
 			return memberInfo.ResolveCollectionComparison() == CollectionComparison.Structure && memberType != typeof(String) && memberType.IsEnumerable(out genericEnumerableType);
 		}
@@ -72,12 +63,17 @@ namespace Equality {
 			return memberInfo.GetMemberEquality().CollectionComparison.ResolveCollectionComparison();
 		}
 
-		internal static IMemberEqualityAttribute GetMemberEquality(this MemberInfo memberInfo) {// where TMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
-			ITypeEqualityAttribute typeEqualityAttribute = memberInfo.DeclaringType.GetCustomAttribute<TypeEqualityAttribute>(inherit: true)
-				?? new TypeEqualityAttribute(MemberInclusion.Include, CollectionComparison.Structure);
-			var memberEqualityAttribute = memberInfo.GetCustomAttribute<MemberEqualityAttribute>(inherit: true)
-				?? new MemberEqualityAttribute(typeEqualityAttribute.FieldInclusion, typeEqualityAttribute.CollectionComparison);
-			return memberEqualityAttribute;
+		internal static IMemberEqualityAttribute GetMemberEquality(this MemberInfo memberInfo) {
+			ITypeEqualityAttribute typeEqualityAttribute;
+			if (memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityAttribute>(inherit: true) != null)
+				typeEqualityAttribute = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityAttribute>(inherit: true);
+			else
+				typeEqualityAttribute = new MemberEqualityAttribute(MemberInclusion.Include, CollectionComparison.Structure);
+			if ((IMemberEqualityAttribute) memberInfo.GetCustomAttribute<FieldEqualityAttribute>(inherit: true) != null)
+				return (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<FieldEqualityAttribute>(inherit: true);
+			if ((IMemberEqualityAttribute) memberInfo.GetCustomAttribute<AutoPropertyEqualityAttribute>(inherit: true) != null)
+				return (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<AutoPropertyEqualityAttribute>(inherit: true);
+			return new InternalMemberEqualityAttribute(typeEqualityAttribute.FieldInclusion, typeEqualityAttribute.CollectionComparison);
 		}
 
 #if DEBUG
@@ -96,8 +92,6 @@ namespace Equality {
 #endif
 
 		internal static TDelegate GenerateIL<TDelegate>(Action<Type, ILGenerator> ilGeneration, Type type, [CallerMemberName] String methodName = null) where TDelegate : class {
-			if (!typeof(TDelegate).IsSubclassOf(typeof(MulticastDelegate)))
-				throw new ArgumentException(nameof(TDelegate));
 			var invokeMethodInfo = typeof(TDelegate).GetMethod(nameof(Action.Invoke));
 			var returnType = invokeMethodInfo.ReturnType;
 			var parameterTypes = invokeMethodInfo.GetParameters().Select(x => x.ParameterType).ToArray();
@@ -110,7 +104,7 @@ namespace Equality {
 			ilGeneration(type, ilGenerator);
 #endif
 
-			var dynamicMethod = new DynamicMethod(methodName + "_" + type.Name, returnType, parameterTypes, typeof(Common).Module, skipVisibility: true);
+			var dynamicMethod = new DynamicMethod(methodName + "_" + type.Name, returnType, parameterTypes, restrictedSkipVisibility: true);
 			ilGenerator = dynamicMethod.GetILGenerator();
 			ilGeneration(type, ilGenerator);
 			return dynamicMethod.CreateDelegate<TDelegate>();

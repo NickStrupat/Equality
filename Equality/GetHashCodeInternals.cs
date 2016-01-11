@@ -131,7 +131,7 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Mul);
 				loadInstanceOpCode(ilGenerator);
 				loadValueTypeMember(ilGenerator);
-				if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
+				if (memberInfo.ShouldGetStructural(memberType, out t))
 					ilGenerator.Emit(OpCodes.Call, MakeGenericGetEnumerableHashCodeMethod(t));
 				else
 					ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(GetHashCode), Type.EmptyTypes));
@@ -150,7 +150,7 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Ldc_I4, prime);
 				ilGenerator.Emit(OpCodes.Mul);
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
-				if (memberInfo.ShouldGetStructuralHashCode(memberType, out t))
+				if (memberInfo.ShouldGetStructural(memberType, out t))
 					ilGenerator.Emit(OpCodes.Call, MakeGenericGetEnumerableHashCodeMethod(t));
 				else
 					ilGenerator.Emit(OpCodes.Callvirt, objectGetHashCode);

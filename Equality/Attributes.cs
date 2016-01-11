@@ -2,20 +2,20 @@
 
 namespace Equality {
 	public enum MemberInclusion { Include, Exclude }
-	public enum CollectionComparison { Structure, Reference }
+	public enum CollectionComparison { Structure, Instance }
 	//public enum Depth { Memberwise, Recursive }
 
 	[AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct)]
-	public class TypeEqualityAttribute : Attribute, ITypeEqualityAttribute {
+	public class MemberEqualityAttribute : Attribute, ITypeEqualityAttribute {
 		private readonly MemberInclusion fieldInclusion;
 		private readonly MemberInclusion autoPropertyInclusion;
 		private readonly CollectionComparison? collectionComparison;
 
-		public TypeEqualityAttribute(MemberInclusion fieldAndAutoPropertyInclusion) : this(fieldAndAutoPropertyInclusion, fieldAndAutoPropertyInclusion, null) { }
-		public TypeEqualityAttribute(MemberInclusion fieldAndAutoPropertyInclusion, CollectionComparison collectionComparison) : this(fieldAndAutoPropertyInclusion, fieldAndAutoPropertyInclusion, collectionComparison) { }
-		public TypeEqualityAttribute(MemberInclusion fieldInclusion, MemberInclusion autoPropertyInclusion, CollectionComparison collectionComparison) : this(fieldInclusion, autoPropertyInclusion, (CollectionComparison?)collectionComparison) { }
+		public MemberEqualityAttribute(MemberInclusion fieldAndAutoPropertyInclusion) : this(fieldAndAutoPropertyInclusion, fieldAndAutoPropertyInclusion, null) { }
+		public MemberEqualityAttribute(MemberInclusion fieldAndAutoPropertyInclusion, CollectionComparison collectionComparison) : this(fieldAndAutoPropertyInclusion, fieldAndAutoPropertyInclusion, collectionComparison) { }
+		public MemberEqualityAttribute(MemberInclusion fieldInclusion, MemberInclusion autoPropertyInclusion, CollectionComparison collectionComparison) : this(fieldInclusion, autoPropertyInclusion, (CollectionComparison?)collectionComparison) { }
 
-		private TypeEqualityAttribute(MemberInclusion fieldInclusion, MemberInclusion autoPropertyInclusion, CollectionComparison? collectionComparison) {
+		private MemberEqualityAttribute(MemberInclusion fieldInclusion, MemberInclusion autoPropertyInclusion, CollectionComparison? collectionComparison) {
 			this.fieldInclusion = fieldInclusion;
 			this.autoPropertyInclusion = autoPropertyInclusion;
 			this.collectionComparison = collectionComparison;
@@ -26,11 +26,11 @@ namespace Equality {
 		CollectionComparison? ITypeEqualityAttribute.CollectionComparison => collectionComparison;
 	}
 
-	public class MemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
+	internal class InternalMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
 		private readonly MemberInclusion memberInclusion;
 		private readonly CollectionComparison? collectionComparison;
 
-		internal MemberEqualityAttribute(MemberInclusion memberInclusion, CollectionComparison? collectionComparison) {
+		internal InternalMemberEqualityAttribute(MemberInclusion memberInclusion, CollectionComparison? collectionComparison) {
 			this.memberInclusion = memberInclusion;
 			this.collectionComparison = collectionComparison;
 		}
@@ -40,41 +40,43 @@ namespace Equality {
 	}
 
 	[AttributeUsage(AttributeTargets.Field)]
-	public class FieldEqualityAttribute : MemberEqualityAttribute, IFieldEqualityAttribute, IMemberEqualityAttribute {
-		//private readonly MemberInclusion fieldInclusion;
-		//private readonly CollectionComparison? fieldComparison;
+	public class FieldEqualityAttribute : Attribute, IMemberEqualityAttribute, IFieldEqualityAttribute {
+		private readonly MemberInclusion fieldInclusion;
+		private readonly CollectionComparison? fieldComparison;
 
 		public FieldEqualityAttribute(MemberInclusion fieldInclusion) : this(fieldInclusion, null) { }
 		public FieldEqualityAttribute(MemberInclusion fieldInclusion, CollectionComparison fieldComparison) : this(fieldInclusion, (CollectionComparison?) fieldComparison) { }
 
-		internal FieldEqualityAttribute(MemberInclusion fieldInclusion, CollectionComparison? fieldComparison) : base(fieldInclusion, fieldComparison)
-		{
-			//this.fieldInclusion = fieldInclusion;
-			//this.fieldComparison = fieldComparison;
+		internal FieldEqualityAttribute(MemberInclusion fieldInclusion, CollectionComparison? fieldComparison) {
+			this.fieldInclusion = fieldInclusion;
+			this.fieldComparison = fieldComparison;
 		}
 
-		MemberInclusion IFieldEqualityAttribute.FieldInclusion => ((IMemberEqualityAttribute) this).MemberInclusion;//fieldInclusion;
-		CollectionComparison? IFieldEqualityAttribute.FieldComparison => ((IMemberEqualityAttribute) this).CollectionComparison;//fieldComparison;
+		MemberInclusion IFieldEqualityAttribute.FieldInclusion => ((IMemberEqualityAttribute) this).MemberInclusion;
+		CollectionComparison? IFieldEqualityAttribute.FieldComparison => ((IMemberEqualityAttribute) this).CollectionComparison;
 
-		//MemberInclusion IMemberEqualityAttribute.MemberInclusion => fieldInclusion;
-		//CollectionComparison? IMemberEqualityAttribute.CollectionComparison => fieldComparison;
+		MemberInclusion IMemberEqualityAttribute.MemberInclusion => fieldInclusion;
+		CollectionComparison? IMemberEqualityAttribute.CollectionComparison => fieldComparison;
 	}
 
 	[AttributeUsage(AttributeTargets.Property)]
-	public class AutoPropertyEqualityAttribute : MemberEqualityAttribute, IAutoPropertyEqualityAttribute {
-		//private readonly MemberInclusion autoPropertyInclusion;
-		//private readonly CollectionComparison? autoPropertyComparison;
+	public class AutoPropertyEqualityAttribute : Attribute, IMemberEqualityAttribute, IAutoPropertyEqualityAttribute {
+		private readonly MemberInclusion autoPropertyInclusion;
+		private readonly CollectionComparison? autoPropertyComparison;
 
 		public AutoPropertyEqualityAttribute(MemberInclusion autoPropertyInclusion) : this(autoPropertyInclusion, null) { }
 		public AutoPropertyEqualityAttribute(MemberInclusion autoPropertyInclusion, CollectionComparison collectionComparison) : this(autoPropertyInclusion, (CollectionComparison?) collectionComparison) { }
 
-		private AutoPropertyEqualityAttribute(MemberInclusion autoPropertyInclusion, CollectionComparison? autoPropertyComparison) : base(autoPropertyInclusion, autoPropertyComparison) {
-			//this.autoPropertyInclusion = autoPropertyInclusion;
-			//this.autoPropertyComparison = autoPropertyComparison;
+		private AutoPropertyEqualityAttribute(MemberInclusion autoPropertyInclusion, CollectionComparison? autoPropertyComparison) {
+			this.autoPropertyInclusion = autoPropertyInclusion;
+			this.autoPropertyComparison = autoPropertyComparison;
 		}
 
 		MemberInclusion IAutoPropertyEqualityAttribute.AutoPropertyInclusion => ((IMemberEqualityAttribute) this).MemberInclusion;
 		CollectionComparison? IAutoPropertyEqualityAttribute.AutoPropertyComparison => ((IMemberEqualityAttribute) this).CollectionComparison;
+
+		MemberInclusion IMemberEqualityAttribute.MemberInclusion => autoPropertyInclusion;
+		CollectionComparison? IMemberEqualityAttribute.CollectionComparison => autoPropertyComparison;
 	}
 
 	[AttributeUsage(AttributeTargets.Property)]
