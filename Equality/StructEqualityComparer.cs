@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 
 namespace Equality {
-	public struct StructEqualityComparer<T> : IEqualityComparer<T> where T : struct {
+	public class StructEqualityComparer<T> : IEqualityComparer<T> where T : struct {
 		public static StructEqualityComparer<T> Default = new StructEqualityComparer<T>();
 
 		public Boolean Equals(T x, T y) => Struct.Equals(ref x, ref y);
