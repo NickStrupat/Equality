@@ -7,9 +7,9 @@ using System.Threading.Tasks;
 using Equality;
 
 namespace Testing {
-	[MemberEqualityDefaults(FieldsAndAutoProperties = Composition.Exclude, Collections = Comparison.Structure)]
+	//[MemberEqualityDefaults(FieldsAndAutoProperties = Composition.Exclude, Collections = Comparison.Structure)]
 	class Program {
-		[AutoPropertyEquality(Composition.Include)]
+		//[MemberEquality(Composition = Composition.Include, CollectionComparison = Comparison.Structure)]
 		public String Text { get; set; } = "Hello";
 
 		static void Main(String[] args) {

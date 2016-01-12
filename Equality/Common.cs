@@ -6,7 +6,6 @@ using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
-using System.Text.RegularExpressions;
 
 namespace Equality {
 	internal static class Common {
@@ -18,6 +17,7 @@ namespace Equality {
 
 		private static IEnumerable<FieldInfo> GetFields(this Type type, Composition memberComposition) {
 			return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+			           .Where(x => !x.IsBackingFieldOfAnAutoProperty())
 			           .Where(x => x.GetMemberEquality().MemberComposition == memberComposition);
 		}
 
@@ -31,12 +31,8 @@ namespace Equality {
 		internal static PropertyInfo[] GetProperties(Type type) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
 			           .Where(x => !x.IsAnAutoProperty())
-			           .Where(x => x.IsDefined(typeof(IncludePropertyAttribute), inherit: true))
+			           .Where(x => x.GetMemberEquality().MemberComposition == Composition.Include)
 			           .ToArray();
-		}
-
-		internal static IIncludePropertyAttribute GetPropertyComparison(this MemberInfo memberInfo) {
-			return memberInfo.GetCustomAttribute<IncludePropertyAttribute>(inherit: true);
 		}
 
 		internal static Boolean IsEnumerable(this Type memberType, out Type genericEnumerableType)
@@ -64,16 +60,12 @@ namespace Equality {
 		}
 
 		internal static IMemberEqualityAttribute GetMemberEquality(this MemberInfo memberInfo) {
-			IMemberEqualityDefaultsAttribute memberEqualityDefaultsAttribute;
-			if (memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true) != null)
-				memberEqualityDefaultsAttribute = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true);
-			else
-				memberEqualityDefaultsAttribute = new MemberEqualityDefaultsAttribute(Composition.Include, Comparison.Structure);
-			if ((IMemberEqualityAttribute) memberInfo.GetCustomAttribute<FieldEqualityAttribute>(inherit: true) != null)
-				return (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<FieldEqualityAttribute>(inherit: true);
-			if ((IMemberEqualityAttribute) memberInfo.GetCustomAttribute<AutoPropertyEqualityAttribute>(inherit: true) != null)
-				return (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<AutoPropertyEqualityAttribute>(inherit: true);
-			return new InternalMemberEqualityAttribute(memberEqualityDefaultsAttribute.FieldComposition, memberEqualityDefaultsAttribute.CollectionComparison);
+			var memberEqualityAttribute = memberInfo.GetCustomAttribute<MemberEqualityAttribute>(inherit: true);
+			if (memberEqualityAttribute != null)
+				return memberEqualityAttribute;
+			var typeDefaults = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true)
+				?? new MemberEqualityDefaultsAttribute();
+			return new InternalMemberEqualityAttribute { Composition = typeDefaults.FieldsAndAutoProperties, CollectionComparison = typeDefaults.Collections };
 		}
 
 #if DEBUG

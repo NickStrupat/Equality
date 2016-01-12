@@ -22,16 +22,8 @@ namespace Equality {
 		Comparison? Collections { get; }
 	}
 
-	internal class InternalMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
-		private readonly Composition? member;
-		private readonly Comparison? collection;
-
-		Composition? IMemberEqualityAttribute.MemberComposition => member;
-		Comparison? IMemberEqualityAttribute.CollectionComparison => collection;
-	}
-
-	[AttributeUsage(AttributeTargets.Field)]
-	public class FieldEqualityAttribute : Attribute, IMemberEqualityAttribute/*, IFieldEqualityAttribute*/ {
+	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property)]
+	public class MemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
 		private Composition? composition;
 		private Comparison? collectionComparison;
 
@@ -40,32 +32,6 @@ namespace Equality {
 
 		Composition? IMemberEqualityAttribute.MemberComposition => composition;
 		Comparison? IMemberEqualityAttribute.CollectionComparison => collectionComparison;
-	}
-
-	[AttributeUsage(AttributeTargets.Property)]
-	public class AutoPropertyEqualityAttribute : Attribute, IMemberEqualityAttribute/*, IAutoPropertyEqualityAttribute*/ {
-		private Composition? composition;
-		private Comparison? collectionComparison;
-
-		public Composition Composition { get { return composition.GetValueOrDefault(); } set { composition = value; } }
-		public Comparison CollectionComparison { get { return collectionComparison.GetValueOrDefault(); } set { collectionComparison = value; } }
-
-		Composition? IMemberEqualityAttribute.MemberComposition => composition;
-		Comparison? IMemberEqualityAttribute.CollectionComparison => collectionComparison;
-	}
-
-	[AttributeUsage(AttributeTargets.Property)]
-	public class IncludePropertyAttribute : Attribute, IIncludePropertyAttribute {
-		private readonly Comparison? propertyComparison;
-
-		public IncludePropertyAttribute() { }
-		public IncludePropertyAttribute(Comparison propertyComparison) { this.propertyComparison = propertyComparison; }
-
-		Comparison? IIncludePropertyAttribute.PropertyComparison => propertyComparison;
-	}
-
-	internal interface IMemberCollectionComparisonAttribute {
-		Comparison? CollectionComparison { get; }
 	}
 
 	internal interface IMemberEqualityAttribute {
@@ -73,17 +39,14 @@ namespace Equality {
 		Comparison? CollectionComparison { get; }
 	}
 
-	internal interface IFieldEqualityAttribute {
-		Composition? FieldComposition { get; }
-		Comparison? FieldComparison { get; }
-	}
+	internal class InternalMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
+		private Composition? composition;
+		private Comparison? collectionComparison;
 
-	internal interface IAutoPropertyEqualityAttribute {
-		Composition? AutoPropertyComposition { get; }
-		Comparison? AutoPropertyComparison { get; }
-	}
+		public Composition Composition { get { return composition.GetValueOrDefault(); } set { composition = value; } }
+		public Comparison CollectionComparison { get { return collectionComparison.GetValueOrDefault(); } set { collectionComparison = value; } }
 
-	internal interface IIncludePropertyAttribute {
-		Comparison? PropertyComparison { get; }
+		Composition? IMemberEqualityAttribute.MemberComposition => composition;
+		Comparison? IMemberEqualityAttribute.CollectionComparison => collectionComparison;
 	}
 }
