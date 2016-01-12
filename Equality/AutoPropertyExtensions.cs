@@ -5,8 +5,8 @@ using System.Text.RegularExpressions;
 
 namespace Equality {
 	public static class AutoPropertyExtensions {
-		const String Prefix = "<";
-		const String Suffix = ">k__BackingField";
+		private const String Prefix = "<";
+		private const String Suffix = ">k__BackingField";
 
 		private static String GetBackingFieldName(String propertyName) => $"{Prefix}{propertyName}{Suffix}";
 
