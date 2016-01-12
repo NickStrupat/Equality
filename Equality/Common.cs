@@ -11,19 +11,19 @@ using System.Text.RegularExpressions;
 namespace Equality {
 	internal static class Common {
 		internal static FieldInfo[] GetFields(Type type) {
-			var includedFields = type.GetFields(MemberInclusion.Include).Concat(type.GetAutoPropertyBackingFields(MemberInclusion.Include)).Distinct();
-			var excludedFields = type.GetFields(MemberInclusion.Exclude).Concat(type.GetAutoPropertyBackingFields(MemberInclusion.Exclude)).Distinct();
+			var includedFields = type.GetFields(Composition.Include).Concat(type.GetAutoPropertyBackingFields(Composition.Include)).Distinct();
+			var excludedFields = type.GetFields(Composition.Exclude).Concat(type.GetAutoPropertyBackingFields(Composition.Exclude)).Distinct();
 			return includedFields.Except(excludedFields).ToArray();
 		}
 
-		private static IEnumerable<FieldInfo> GetFields(this Type type, MemberInclusion memberInclusion) {
+		private static IEnumerable<FieldInfo> GetFields(this Type type, Composition memberComposition) {
 			return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			           .Where(x => x.GetMemberEquality().MemberInclusion == memberInclusion);
+			           .Where(x => x.GetMemberEquality().MemberComposition == memberComposition);
 		}
 
-		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields(this Type type, MemberInclusion memberInclusion) {
+		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields(this Type type, Composition memberComposition) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			           .Where(x => x.GetMemberEquality().MemberInclusion == memberInclusion)
+			           .Where(x => x.GetMemberEquality().MemberComposition == memberComposition)
 			           .Select(AutoPropertyExtensions.GetBackingField)
 			           .Where(x => x != null);
 		}
@@ -52,28 +52,28 @@ namespace Equality {
 
 		internal static Boolean ShouldGetStructural(this MemberInfo memberInfo, Type memberType, out Type genericEnumerableType) {
 			genericEnumerableType = null;
-			return memberInfo.ResolveCollectionComparison() == CollectionComparison.Structure && memberType != typeof(String) && memberType.IsEnumerable(out genericEnumerableType);
+			return memberInfo.ResolveCollectionComparison() == Comparison.Structure && memberType != typeof(String) && memberType.IsEnumerable(out genericEnumerableType);
 		}
 
-		private static CollectionComparison ResolveCollectionComparison(this CollectionComparison? collectionComparison) {
-			return collectionComparison.GetValueOrDefault(CollectionComparison.Structure);
+		private static Comparison ResolveCollectionComparison(this Comparison? collectionComparison) {
+			return collectionComparison.GetValueOrDefault(Comparison.Structure);
 		}
 
-		internal static CollectionComparison ResolveCollectionComparison(this MemberInfo memberInfo) {
+		internal static Comparison ResolveCollectionComparison(this MemberInfo memberInfo) {
 			return memberInfo.GetMemberEquality().CollectionComparison.ResolveCollectionComparison();
 		}
 
 		internal static IMemberEqualityAttribute GetMemberEquality(this MemberInfo memberInfo) {
-			ITypeEqualityAttribute typeEqualityAttribute;
-			if (memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityAttribute>(inherit: true) != null)
-				typeEqualityAttribute = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityAttribute>(inherit: true);
+			IMemberEqualityDefaultsAttribute memberEqualityDefaultsAttribute;
+			if (memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true) != null)
+				memberEqualityDefaultsAttribute = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true);
 			else
-				typeEqualityAttribute = new MemberEqualityAttribute(MemberInclusion.Include, CollectionComparison.Structure);
+				memberEqualityDefaultsAttribute = new MemberEqualityDefaultsAttribute(Composition.Include, Comparison.Structure);
 			if ((IMemberEqualityAttribute) memberInfo.GetCustomAttribute<FieldEqualityAttribute>(inherit: true) != null)
 				return (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<FieldEqualityAttribute>(inherit: true);
 			if ((IMemberEqualityAttribute) memberInfo.GetCustomAttribute<AutoPropertyEqualityAttribute>(inherit: true) != null)
 				return (IMemberEqualityAttribute) memberInfo.GetCustomAttribute<AutoPropertyEqualityAttribute>(inherit: true);
-			return new InternalMemberEqualityAttribute(typeEqualityAttribute.FieldInclusion, typeEqualityAttribute.CollectionComparison);
+			return new InternalMemberEqualityAttribute(memberEqualityDefaultsAttribute.FieldComposition, memberEqualityDefaultsAttribute.CollectionComparison);
 		}
 
 #if DEBUG

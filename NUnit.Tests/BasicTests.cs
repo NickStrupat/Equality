@@ -82,12 +82,12 @@ namespace NUnit.Tests {
 			}
 		}
 		
-		[MemberEquality(MemberInclusion.Include, CollectionComparison.Instance)]
+		[MemberEqualityDefaults(Composition.Include, Comparison.Instance)]
 		class Bar : IEquatable<Bar> {
 			public Foo Foo;
 			public String Text { get; set; }
 			public Int64 Number;
-			[FieldEquality(MemberInclusion.Include, CollectionComparison.Structure)]
+			[FieldEquality(Composition.Include, Comparison.Structure)]
 			public Int32[] Numbers = { 1, 2, 3 };
 
 			public override Boolean Equals(Object obj) => Equals(obj as Bar);
