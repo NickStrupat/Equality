@@ -38,15 +38,4 @@ namespace Equality {
 		Composition? MemberComposition { get; }
 		Comparison? CollectionComparison { get; }
 	}
-
-	internal class InternalMemberEqualityAttribute : Attribute, IMemberEqualityAttribute {
-		private Composition? composition;
-		private Comparison? collectionComparison;
-
-		public Composition Composition { get { return composition.GetValueOrDefault(); } set { composition = value; } }
-		public Comparison CollectionComparison { get { return collectionComparison.GetValueOrDefault(); } set { collectionComparison = value; } }
-
-		Composition? IMemberEqualityAttribute.MemberComposition => composition;
-		Comparison? IMemberEqualityAttribute.CollectionComparison => collectionComparison;
-	}
 }

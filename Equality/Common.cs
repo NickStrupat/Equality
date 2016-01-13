@@ -18,12 +18,12 @@ namespace Equality {
 		private static IEnumerable<FieldInfo> GetFields(this Type type, Composition memberComposition) {
 			return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
 			           .Where(x => !x.IsBackingFieldOfAnAutoProperty())
-			           .Where(x => x.GetMemberEquality().MemberComposition == memberComposition);
+			           .Where(x => x.GetMemberEquality().Composition == memberComposition);
 		}
 
 		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields(this Type type, Composition memberComposition) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			           .Where(x => x.GetMemberEquality().MemberComposition == memberComposition)
+			           .Where(x => x.GetMemberEquality().Composition == memberComposition)
 			           .Select(AutoPropertyExtensions.GetBackingField)
 			           .Where(x => x != null);
 		}
@@ -31,7 +31,7 @@ namespace Equality {
 		internal static PropertyInfo[] GetProperties(Type type) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
 			           .Where(x => !x.IsAnAutoProperty())
-			           .Where(x => x.GetMemberEquality().MemberComposition == Composition.Include)
+			           .Where(x => x.GetMemberEquality().Composition == Composition.Include)
 			           .ToArray();
 		}
 
@@ -51,21 +51,22 @@ namespace Equality {
 			return memberInfo.ResolveCollectionComparison() == Comparison.Structure && memberType != typeof(String) && memberType.IsEnumerable(out genericEnumerableType);
 		}
 
-		private static Comparison ResolveCollectionComparison(this Comparison? collectionComparison) {
-			return collectionComparison.GetValueOrDefault(Comparison.Structure);
-		}
-
 		internal static Comparison ResolveCollectionComparison(this MemberInfo memberInfo) {
-			return memberInfo.GetMemberEquality().CollectionComparison.ResolveCollectionComparison();
+			return memberInfo.GetMemberEquality().CollectionComparison;
 		}
 
-		internal static IMemberEqualityAttribute GetMemberEquality(this MemberInfo memberInfo) {
-			var memberEqualityAttribute = memberInfo.GetCustomAttribute<MemberEqualityAttribute>(inherit: true);
-			if (memberEqualityAttribute != null)
-				return memberEqualityAttribute;
-			var typeDefaults = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true)
-				?? new MemberEqualityDefaultsAttribute();
-			return new InternalMemberEqualityAttribute { Composition = typeDefaults.FieldsAndAutoProperties, CollectionComparison = typeDefaults.Collections };
+		internal struct MemberEquality {
+			public Composition Composition { get; set; }
+			public Comparison CollectionComparison { get; set; }
+		}
+
+		internal static MemberEquality GetMemberEquality(this MemberInfo memberInfo) {
+			IMemberEqualityAttribute memberEqualityAttribute = memberInfo.GetCustomAttribute<MemberEqualityAttribute>(inherit: true);
+			IMemberEqualityDefaultsAttribute typeDefaults = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true);
+			return new MemberEquality {
+				Composition = memberEqualityAttribute?.MemberComposition ?? typeDefaults?.FieldsAndAutoProperties ?? Composition.Include,
+				CollectionComparison = memberEqualityAttribute?.CollectionComparison ?? typeDefaults?.Collections ?? Comparison.Structure
+			};
 		}
 
 #if DEBUG
