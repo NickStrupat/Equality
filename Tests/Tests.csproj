@@ -56,7 +56,10 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="Bar.cs" />
     <Compile Include="BasicTests.cs" />
+    <Compile Include="Baz.cs" />
+    <Compile Include="Foo.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

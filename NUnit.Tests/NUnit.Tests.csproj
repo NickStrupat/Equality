@@ -18,7 +18,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>TRACE;DEBUG;NUNIT</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <Prefer32Bit>false</Prefer32Bit>
@@ -46,7 +46,18 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BasicTests.cs" />
+    <Compile Include="..\Tests\Bar.cs">
+      <Link>Bar.cs</Link>
+    </Compile>
+    <Compile Include="..\Tests\BasicTests.cs">
+      <Link>BasicTests.cs</Link>
+    </Compile>
+    <Compile Include="..\Tests\Baz.cs">
+      <Link>Baz.cs</Link>
+    </Compile>
+    <Compile Include="..\Tests\Foo.cs">
+      <Link>Foo.cs</Link>
+    </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
