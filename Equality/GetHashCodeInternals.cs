@@ -133,6 +133,8 @@ namespace Equality {
 				loadValueTypeMember(ilGenerator);
 				if (memberInfo.ShouldGetStructural(memberType, out t))
 					ilGenerator.Emit(OpCodes.Call, MakeGenericGetEnumerableHashCodeMethod(t));
+				//else if (!memberType.IsPrimitive && !memberType.IsEnum && memberInfo.GetMemberEquality().Depth == Depth.Recursive)
+				//	ilGenerator.Emit(OpCodes.Call, typeof(Struct).GetMethod(nameof(Struct.GetHashCode)).MakeGenericMethod(memberType));
 				else
 					ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(GetHashCode), Type.EmptyTypes));
 				ilGenerator.Emit(OpCodes.Add);

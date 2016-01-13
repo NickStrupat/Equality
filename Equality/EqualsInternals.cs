@@ -133,7 +133,7 @@ namespace Equality {
 				throw new ArgumentOutOfRangeException(nameof(memberInfo), "Must be FieldInfo or PropertyInfo");
 
 			Action<ILGenerator> emitComparison = delegate { };
-			if (memberType.IsPrimitive)
+			if (memberType.IsPrimitive || memberType.IsEnum)
 				emitComparison = ilg => ilg.Emit(OpCodes.Beq, nextMember);
 			else {
 				MethodInfo opEquality;

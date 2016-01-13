@@ -1,15 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 using Equality;
 
 namespace Testing {
-	//[MemberEqualityDefaults(FieldsAndAutoProperties = Composition.Exclude, Collections = Comparison.Structure)]
+	[MemberEqualityDefaults(FieldsAndAutoProperties = Composition.Exclude, Collections = Comparison.Structure)]
 	class Program {
-		//[MemberEquality(Composition = Composition.Include, CollectionComparison = Comparison.Structure)]
+		[MemberEquality(Composition = Composition.Include, CollectionComparison = Comparison.Structure)]
 		public String Text { get; set; } = "Hello";
 
 		static void Main(String[] args) {

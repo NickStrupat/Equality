@@ -10,8 +10,8 @@ using System.Runtime.CompilerServices;
 namespace Equality {
 	internal static class Common {
 		internal static FieldInfo[] GetFields(Type type) {
-			var includedFields = type.GetFields(Composition.Include).Concat(type.GetAutoPropertyBackingFields(Composition.Include)).Distinct();
-			var excludedFields = type.GetFields(Composition.Exclude).Concat(type.GetAutoPropertyBackingFields(Composition.Exclude)).Distinct();
+			var includedFields = type.GetFields(Composition.Include).Concat(type.GetAutoPropertyBackingFields(Composition.Include));
+			var excludedFields = type.GetFields(Composition.Exclude).Concat(type.GetAutoPropertyBackingFields(Composition.Exclude));
 			return includedFields.Except(excludedFields).ToArray();
 		}
 
@@ -58,6 +58,7 @@ namespace Equality {
 		internal struct MemberEquality {
 			public Composition Composition { get; set; }
 			public Comparison CollectionComparison { get; set; }
+			public Depth Depth { get; set; }
 		}
 
 		internal static MemberEquality GetMemberEquality(this MemberInfo memberInfo) {
@@ -65,7 +66,8 @@ namespace Equality {
 			IMemberEqualityDefaultsAttribute typeDefaults = memberInfo.DeclaringType.GetCustomAttribute<MemberEqualityDefaultsAttribute>(inherit: true);
 			return new MemberEquality {
 				Composition = memberEqualityAttribute?.MemberComposition ?? typeDefaults?.FieldsAndAutoProperties ?? Composition.Include,
-				CollectionComparison = memberEqualityAttribute?.CollectionComparison ?? typeDefaults?.Collections ?? Comparison.Structure
+				CollectionComparison = memberEqualityAttribute?.CollectionComparison ?? typeDefaults?.Collections ?? Comparison.Structure,
+				Depth = memberEqualityAttribute?.Depth ?? typeDefaults?.Depth ?? Depth.Memberwise
 			};
 		}
 
