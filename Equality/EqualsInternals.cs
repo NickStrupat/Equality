@@ -9,7 +9,9 @@ using System.Reflection.Emit;
 namespace Equality {
 	internal static class EqualsInternals {
 		internal delegate Boolean StructEquals<T>(ref T x, ref T y) where T : struct;
+		internal delegate Boolean StructEqualsObject<T>(ref T x, Object y) where T : struct;
 		internal delegate Boolean ClassEquals<in T>(T x, T y) where T : class;
+		internal delegate Boolean ClassEqualsObject<in T>(T x, Object y) where T : class;
 
 		internal static class StaticStructCache<T> where T : struct {
 			public static readonly StructEquals<T> Func = GetStructEqualsFunc<T>();
@@ -145,7 +147,14 @@ namespace Equality {
 					else {
 						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
 					}
-					emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] { memberType })));
+					if (memberInfo.ShouldRecurse(memberType)) {
+						if (memberType.IsValueType)
+							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Struct.EqualsMethodInfo.MakeGenericMethod(memberType)));
+						else
+							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Class.EqualsMethodInfo.MakeGenericMethod(memberType)));
+					}
+					else
+						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, memberType.GetMethod(nameof(Equals), new[] { memberType })));
 				}
 				else if ((opEquality = memberType.GetMethod("op_Equality", new[] { memberType, memberType })) != null) {
 					emitComparison = ilg => ilg.Emit(OpCodes.Call, opEquality);
@@ -160,8 +169,14 @@ namespace Equality {
 					}
 					if (memberInfo.ShouldGetStructural(memberType, out t))
 						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof(EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t)));
+					else if (memberInfo.ShouldRecurse(memberType)) {
+						if (memberType.IsValueType)
+							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Struct.EqualsMethodInfo.MakeGenericMethod(memberType)));
+						else
+							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Class.EqualsMethodInfo.MakeGenericMethod(memberType)));
+					}
 					else
-						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] { typeof(Object) })));
+						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Callvirt, memberType.GetMethod(nameof(Equals), new[] {typeof(Object)})));
 				}
 				emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Brtrue, nextMember));
 			}

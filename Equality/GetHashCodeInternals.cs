@@ -133,8 +133,8 @@ namespace Equality {
 				loadValueTypeMember(ilGenerator);
 				if (memberInfo.ShouldGetStructural(memberType, out t))
 					ilGenerator.Emit(OpCodes.Call, MakeGenericGetEnumerableHashCodeMethod(t));
-				//else if (!memberType.IsPrimitive && !memberType.IsEnum && memberInfo.GetMemberEquality().Depth == Depth.Recursive)
-				//	ilGenerator.Emit(OpCodes.Call, typeof(Struct).GetMethod(nameof(Struct.GetHashCode)).MakeGenericMethod(memberType));
+				else if (memberInfo.ShouldRecurse(memberType))
+					ilGenerator.Emit(OpCodes.Call, Struct.GetHashCodeMethodInfo.MakeGenericMethod(memberType));
 				else
 					ilGenerator.Emit(OpCodes.Call, memberType.GetMethod(nameof(GetHashCode), Type.EmptyTypes));
 				ilGenerator.Emit(OpCodes.Add);
@@ -154,6 +154,8 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
 				if (memberInfo.ShouldGetStructural(memberType, out t))
 					ilGenerator.Emit(OpCodes.Call, MakeGenericGetEnumerableHashCodeMethod(t));
+				else if (memberInfo.ShouldRecurse(memberType))
+					ilGenerator.Emit(OpCodes.Call, Class.GetHashCodeMethodInfo.MakeGenericMethod(memberType));
 				else
 					ilGenerator.Emit(OpCodes.Callvirt, objectGetHashCode);
 				ilGenerator.Emit(OpCodes.Add);

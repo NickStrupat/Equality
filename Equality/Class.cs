@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 
 namespace Equality {
 	public static class Class {
@@ -27,5 +28,10 @@ namespace Equality {
 				return EqualsInternals.StaticClassCache<T>.Func.Invoke(x, y);
 			return EqualsInternals.GetDynamicClassEquals(xType).Invoke(x, y);
 		}
+
+		private class X { }
+		internal static readonly MethodInfo GetHashCodeMethodInfo = new GetHashCodeInternals.GetClassHashCode<X>(GetHashCode).Method.GetGenericMethodDefinition();
+		internal static readonly MethodInfo EqualsMethodInfo = new EqualsInternals.ClassEquals<X>(Equals).Method.GetGenericMethodDefinition();
+		internal static readonly MethodInfo EqualsObjectMethodInfo = new EqualsInternals.ClassEqualsObject<X>(Equals).Method.GetGenericMethodDefinition();
 	}
 }

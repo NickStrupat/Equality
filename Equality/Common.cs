@@ -48,7 +48,11 @@ namespace Equality {
 
 		internal static Boolean ShouldGetStructural(this MemberInfo memberInfo, Type memberType, out Type genericEnumerableType) {
 			genericEnumerableType = null;
-			return memberInfo.ResolveCollectionComparison() == Comparison.Structure && memberType != typeof(String) && memberType.IsEnumerable(out genericEnumerableType);
+			return memberType != typeof(String) && memberType.IsEnumerable(out genericEnumerableType) && memberInfo.ResolveCollectionComparison() == Comparison.Structure;
+		}
+
+		internal static Boolean ShouldRecurse(this MemberInfo memberInfo, Type memberType) {
+			return !memberType.IsPrimitive && !memberType.IsEnum && memberType != typeof(String) && memberInfo.GetMemberEquality().Depth == Depth.Recursive;
 		}
 
 		internal static Comparison ResolveCollectionComparison(this MemberInfo memberInfo) {

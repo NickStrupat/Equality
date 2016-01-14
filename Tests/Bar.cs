@@ -6,6 +6,7 @@ using Equality;
 namespace NUnit.Tests {
 	[MemberEqualityDefaults(FieldsAndAutoProperties = Composition.Include, Collections = Comparison.Instance)]
 	class Bar : IEquatable<Bar> {
+		[MemberEquality(Depth = Depth.Recursive)]
 		public Foo Foo;
 		public String Text { get; set; }
 		public Int64 Number;
@@ -24,7 +25,7 @@ namespace NUnit.Tests {
 		}
 
 		private static Boolean Equals(Bar x, Bar y) {
-			if (!x.Foo.Equals(y.Foo))
+			if (!Struct.Equals(ref x.Foo, ref y.Foo))
 				return false;
 			var text = x.Text;
 			var text2 = y.Text;

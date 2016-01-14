@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 
 namespace Equality {
 	public static class Struct {
@@ -12,5 +13,10 @@ namespace Equality {
 			var o = (T)y;
 			return Equals(ref x, ref o);
 		}
+
+		private struct X { }
+		internal static readonly MethodInfo GetHashCodeMethodInfo = new GetHashCodeInternals.GetStructHashCode<X>(GetHashCode).Method.GetGenericMethodDefinition();
+		internal static readonly MethodInfo EqualsMethodInfo = new EqualsInternals.StructEquals<X>(Equals).Method.GetGenericMethodDefinition();
+		internal static readonly MethodInfo EqualsObjectMethodInfo = new EqualsInternals.StructEqualsObject<X>(Equals).Method.GetGenericMethodDefinition();
 	}
 }
