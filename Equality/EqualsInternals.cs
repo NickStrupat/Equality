@@ -142,14 +142,16 @@ namespace Equality {
 				Type t;
 				if (typeof(IEquatable<>).MakeGenericType(memberType).IsAssignableFrom(memberType)) {
 					if (memberType.IsValueType) {
-						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(firstMemberLocalMap, memberInfo, memberType, emitLoadFirstMember);
+						emitLoadFirstMember = GetEmitLoadMemberForValueType(firstMemberLocalMap, memberInfo, memberType, emitLoadFirstMember);
 					}
 					else {
 						SetEmitLoadAndCompareForReferenceType(firstMemberLocalMap, secondMemberLocalMap, memberType, nextMember, ref emitLoadFirstMember, ref emitLoadSecondMember, ref emitComparison);
 					}
 					if (memberInfo.ShouldRecurse(memberType)) {
-						if (memberType.IsValueType)
+						if (memberType.IsValueType) {
+							emitLoadSecondMember = GetEmitLoadMemberForValueType(secondMemberLocalMap, memberInfo, memberType, emitLoadSecondMember);
 							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Struct.EqualsMethodInfo.MakeGenericMethod(memberType)));
+						}
 						else
 							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Class.EqualsMethodInfo.MakeGenericMethod(memberType)));
 					}
@@ -161,7 +163,7 @@ namespace Equality {
 				}
 				else {
 					if (memberType.IsValueType) {
-						emitLoadFirstMember = SetEmitLoadFirstMemberForValueType(firstMemberLocalMap, memberInfo, memberType, emitLoadFirstMember);
+						emitLoadFirstMember = GetEmitLoadMemberForValueType(firstMemberLocalMap, memberInfo, memberType, emitLoadFirstMember);
 						loadSecondInstance = loadSecondInstance.CombineDelegates(ilg => ilg.Emit(OpCodes.Box, memberType));
 					}
 					else {
@@ -170,8 +172,10 @@ namespace Equality {
 					if (memberInfo.ShouldGetStructural(memberType, out t))
 						emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, typeof(EqualsInternals).GetMethod(nameof(EnumerableEquals), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t)));
 					else if (memberInfo.ShouldRecurse(memberType)) {
-						if (memberType.IsValueType)
+						if (memberType.IsValueType) {
+							emitLoadSecondMember = GetEmitLoadMemberForValueType(secondMemberLocalMap, memberInfo, memberType, emitLoadSecondMember);
 							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Struct.EqualsMethodInfo.MakeGenericMethod(memberType)));
+						}
 						else
 							emitComparison = emitComparison.CombineDelegates(ilg => ilg.Emit(OpCodes.Call, Class.EqualsMethodInfo.MakeGenericMethod(memberType)));
 					}
@@ -225,7 +229,7 @@ namespace Equality {
 			};
 		}
 
-		private static Action<ILGenerator> SetEmitLoadFirstMemberForValueType(ConcurrentDictionary<Type, LocalBuilder> localMap, MemberInfo memberInfo, Type memberType, Action<ILGenerator> emitLoadFirstMember) {
+		private static Action<ILGenerator> GetEmitLoadMemberForValueType(ConcurrentDictionary<Type, LocalBuilder> localMap, MemberInfo memberInfo, Type memberType, Action<ILGenerator> emitLoadFirstMember) {
 			if (memberInfo is FieldInfo)
 				return ilg => ilg.Emit(OpCodes.Ldflda, (FieldInfo) memberInfo);
 			if (memberInfo is PropertyInfo) {
