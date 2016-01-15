@@ -3,7 +3,7 @@ using System.Linq;
 
 using Equality;
 
-namespace NUnit.Tests {
+namespace Tests {
 	[MemberEqualityDefaults(FieldsAndAutoProperties = Composition.Include, Collections = Comparison.Instance)]
 	class Bar : IEquatable<Bar> {
 		[MemberEquality(Depth = Depth.Recursive)]

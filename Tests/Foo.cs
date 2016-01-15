@@ -1,6 +1,8 @@
 using System;
 
-namespace NUnit.Tests {
+using Tests;
+
+namespace Tests {
 	struct Foo : IEquatable<Foo> {
 		public Boolean a;
 		public String b;

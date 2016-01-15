@@ -1,6 +1,8 @@
 ﻿using System;
 
-namespace NUnit.Tests {
+using Tests;
+
+namespace Tests {
 	class Baz : Bar, IEquatable<Baz> {
 		public String Yep { get; set; }
 

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.CodeDom;
 
 using Equality;
 
@@ -9,7 +8,7 @@ using NUnit.Framework;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 #endif
 
-namespace NUnit.Tests {
+namespace Tests {
 #if NUNIT
 	[TestFixture]
 #else
