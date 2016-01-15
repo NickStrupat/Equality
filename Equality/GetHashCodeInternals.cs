@@ -103,10 +103,16 @@ namespace Equality {
 				EmitMemberIL(ilGenerator, Prime, hashCode, loadInstanceOpCode, loadValueTypeMember, field, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
 			}
 
+			var localMap = new ConcurrentDictionary<Type, LocalBuilder>();
 			var properties = Common.GetProperties(type);
 			for (var i = 0; i < properties.Length; i++) {
 				var property = properties[i];
-				Action<ILGenerator> loadValueTypeMember = ilg => ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic: true));
+				Action<ILGenerator> loadValueTypeMember = ilg => {
+					ilg.Emit(OpCodes.Call, property.GetGetMethod(nonPublic: true));
+					var hold = localMap.GetOrAdd(property.PropertyType, ilg.DeclareLocal);
+					ilg.Emit(OpCodes.Stloc, hold);
+					ilg.Emit(OpCodes.Ldloca, hold);
+				                                          };
 				Action<ILGenerator> loadReferenceTypeMember = loadValueTypeMember;
 				EmitMemberIL(ilGenerator, Prime, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
 			}

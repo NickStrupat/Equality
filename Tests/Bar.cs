@@ -12,6 +12,8 @@ namespace NUnit.Tests {
 		public Int64 Number;
 		[MemberEquality(Composition = Composition.Include, CollectionComparison = Comparison.Structure)]
 		public Int32[] Numbers = { 1, 2, 3 };
+		[MemberEquality(Composition = Composition.Include)]
+		private Int32 Hahaha => 42;
 
 		public override Boolean Equals(Object obj) => Equals(obj as Bar);
 		public Boolean Equals(Bar other) {
@@ -66,6 +68,7 @@ namespace NUnit.Tests {
 				if (str != null) {
 					num = (num * -1521134295) + str.GetHashCode();
 				}
+				num = num * BasicTests.prime + Hahaha.GetHashCode();
 				return num;
 
 
