@@ -7,8 +7,6 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
 
-using Mono.Reflection;
-
 namespace Equality {
 	internal static class Common {
 		internal static FieldInfo[] GetFields(Type type) {
@@ -20,36 +18,23 @@ namespace Equality {
 		private static IEnumerable<FieldInfo> GetFields(this Type type, Composition memberComposition) {
 			var backingFields = type.GetAutoPropertyBackingFields();
 			return type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			                           .Except(backingFields)
-			                           .Where(x => x.GetMemberEquality().Composition == memberComposition)
-			                           .Concat(type.GetAutoPropertyBackingFields(memberComposition));
+			           .Except(backingFields)
+			           .Where(x => x.GetMemberEquality().Composition == memberComposition)
+			           .Concat(type.GetAutoPropertyBackingFields(memberComposition));
 		}
 
 		private static IEnumerable<FieldInfo> GetAutoPropertyBackingFields(this Type type, Composition? memberComposition = null) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
 			           .Where(x => memberComposition == null || x.GetMemberEquality().Composition == memberComposition)
-			           .Select(x => CatchAndReturnNull<ArgumentException, InvalidOperationException, FieldInfo>(x.GetBackingField))
+			           .Select(x => x.GetBackingField())
 			           .Where(x => x != null);
 		}
 
 		internal static PropertyInfo[] GetProperties(Type type) {
 			return type.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-			           .Where(x => CatchAndReturnNull<ArgumentException, InvalidOperationException, FieldInfo>(x.GetBackingField) == null)
+			           .Where(x => x.GetBackingField() == null)
 			           .Where(x => x.GetMemberEquality().Composition == Composition.Include)
 			           .ToArray();
-		}
-
-		private static TResult CatchAndReturnNull<TException, TResult>(Func<TResult> func) where TException : Exception where TResult : class {
-			try { return func(); }
-			catch (TException) { }
-			return null;
-		}
-
-		private static TResult CatchAndReturnNull<TException1, TException2, TResult>(Func<TResult> func) where TException1 : Exception where TException2 : Exception where TResult : class {
-			try { return func(); }
-			catch (TException1) { }
-			catch (TException2) { }
-			return null;
 		}
 
 		internal static Boolean IsEnumerable(this Type memberType, out Type genericEnumerableType)

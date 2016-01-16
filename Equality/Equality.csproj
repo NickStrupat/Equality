@@ -48,6 +48,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Attributes.cs" />
+    <Compile Include="BackingFieldResolver.cs" />
     <Compile Include="Class.cs" />
     <Compile Include="ClassEqualityComparer.cs" />
     <Compile Include="Common.cs" />
