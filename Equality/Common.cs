@@ -99,13 +99,13 @@ namespace Equality {
 
 			ILGenerator ilGenerator;
 #if DEBUG
-			var methodBuilder = builder.DefineMethod(methodName + "_" + type.Name, MethodAttributes.Public | MethodAttributes.Static, returnType, parameterTypes);
+			var methodBuilder = builder.DefineMethod($"{methodName}_{type.Name}", MethodAttributes.Public | MethodAttributes.Static, returnType, parameterTypes);
 
 			ilGenerator = methodBuilder.GetILGenerator();
 			ilGeneration(type, ilGenerator);
 #endif
 
-			var dynamicMethod = new DynamicMethod(methodName + "_" + type.Name, returnType, parameterTypes, restrictedSkipVisibility: true);
+			var dynamicMethod = new DynamicMethod($"{methodName}_{type.Name}", returnType, parameterTypes, restrictedSkipVisibility: true);
 			ilGenerator = dynamicMethod.GetILGenerator();
 			ilGeneration(type, ilGenerator);
 			return dynamicMethod.CreateDelegate<TDelegate>();
