@@ -6,5 +6,7 @@ The last .NET equality solution you'll ever need. Automatically produces equalit
 - ~~Handle enumerables~~
 - ~~Revamp the attribute system for more configurability (and incorporate the comparison settings)~~
 - ~~Optimize Dictionary structural comparison so it doesn't box value types while comparing~~ (needs testing)
-- Fluent-style API for configuring fields to include/exclude
-- Fody tool to IL-weave the overrides to call the respective 'Equality' methods
+- Fluent-style API for configuration (probably won't do this)
+- AOP tool to IL-weave the GetHashCode and Equals overrides into user classes to call the respective 'Equality' methods
+	- Fody
+	- PostSharp

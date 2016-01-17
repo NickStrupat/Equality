@@ -3,9 +3,9 @@
 using Equality;
 
 namespace Testing {
-	[MemberEqualityDefaults(FieldsAndAutoProperties = Composition.Exclude, Collections = Comparison.Structure)]
+	[MemberEqualityDefaults(Composition.Exclude, Comparison.Structure)]
 	class Program {
-		[MemberEquality(Composition = Composition.Include, CollectionComparison = Comparison.Structure)]
+		[MemberEquality(Composition.Include, Comparison.Structure)]
 		public String Text { get; set; } = "Hello";
 
 		static void Main(String[] args) {
