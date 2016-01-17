@@ -28,9 +28,9 @@ namespace Equality {
 
 			public static readonly ReferenceEqualsDelegate Func = Common.GenerateIL<ReferenceEqualsDelegate>(ILGeneration, typeof(T));
 
-			private static readonly FieldInfo typedReferenceValueFieldInfo = typeof(TypedReference).GetField("Value", BindingFlags.NonPublic | BindingFlags.Instance);
-
 			private static void ILGeneration(Type type, ILGenerator ilGenerator) {
+				var typedReferenceValueFieldInfo = typeof(TypedReference).GetField("Value", BindingFlags.NonPublic | BindingFlags.Instance);
+
 				ilGenerator.Emit(OpCodes.Ldarg_0);
 				ilGenerator.Emit(OpCodes.Mkrefany, typeof(T));
 				ilGenerator.Emit(OpCodes.Ldfld, typedReferenceValueFieldInfo);
