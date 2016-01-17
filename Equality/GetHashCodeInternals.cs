@@ -55,6 +55,12 @@ namespace Equality {
 			return hashCode;
 		}
 
+		private delegate Int32 GetEnumerableOfClassHashCodeDelegate<in T>(IEnumerable<T> enumerable) where T : class;
+		private delegate Int32 GetEnumerableOfStructHashCodeDelegate<in T>(IEnumerable<T> enumerable) where T : struct;
+
+		internal static readonly MethodInfo GetEnumerableOfClassHashCodeMethodInfo = new GetEnumerableOfClassHashCodeDelegate<Object>(GetEnumerableOfClassHashCode).Method.GetGenericMethodDefinition();
+		internal static readonly MethodInfo GetEnumerableOfStructHashCodeMethodInfo = new GetEnumerableOfStructHashCodeDelegate<Byte>(GetEnumerableOfStructHashCode).Method.GetGenericMethodDefinition();
+
 		private static Int32? GetSpecializedEnumerableHashCode<T>(IEnumerable<T> enumerable) {
 			var dictionary = enumerable as IDictionary;
 			if (dictionary != null)
@@ -112,7 +118,7 @@ namespace Equality {
 					var hold = localMap.GetOrAdd(property.PropertyType, ilg.DeclareLocal);
 					ilg.Emit(OpCodes.Stloc, hold);
 					ilg.Emit(OpCodes.Ldloca, hold);
-				                                          };
+				};
 				Action<ILGenerator> loadReferenceTypeMember = loadValueTypeMember;
 				EmitMemberIL(ilGenerator, Prime, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
 			}
@@ -171,8 +177,7 @@ namespace Equality {
 		}
 
 		private static MethodInfo MakeGenericGetEnumerableHashCodeMethod(Type t) {
-			var methodName = t.IsValueType ? nameof(GetEnumerableOfStructHashCode) : nameof(GetEnumerableOfClassHashCode);
-			return typeof(GetHashCodeInternals).GetMethod(methodName, BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(t);
+			return (t.IsValueType ? GetEnumerableOfStructHashCodeMethodInfo : GetEnumerableOfClassHashCodeMethodInfo).MakeGenericMethod(t);
 		}
 	}
 }

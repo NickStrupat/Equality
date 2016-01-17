@@ -10,6 +10,7 @@ namespace Equality {
 	internal static class EqualsInternals {
 		internal delegate Boolean StructEquals<T>(ref T x, ref T y) where T : struct;
 		internal delegate Boolean StructEqualsObject<T>(ref T x, Object y) where T : struct;
+
 		internal delegate Boolean ClassEquals<in T>(T x, T y) where T : class;
 		internal delegate Boolean ClassEqualsObject<in T>(T x, Object y) where T : class;
 
@@ -24,7 +25,6 @@ namespace Equality {
 		internal static ClassEquals<Object> GetDynamicClassEquals(Type type) => DynamicCache.GetOrAdd(type, GetClassEqualsFunc<Object>);
 
 		private static StructEquals<T> GetStructEqualsFunc<T>() where T : struct => Common.GenerateIL<StructEquals<T>>(GenerateIL<T>, typeof(T));
-
 		private static ClassEquals<T> GetClassEqualsFunc<T>(Type type) where T : class => Common.GenerateIL<ClassEquals<T>>(GenerateIL<T>, type);
 
 		private static readonly ConcurrentDictionary<Type, ClassEquals<Object>> DynamicCache = new ConcurrentDictionary<Type, ClassEquals<Object>>();
