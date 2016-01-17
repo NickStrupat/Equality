@@ -11,43 +11,30 @@ namespace Equality {
 		public static Boolean Equals(IDictionary first, IDictionary second) => EqualsCache.GetOrAdd(first.GetType(), EqualsFactory).Invoke(first, second);
 		public static Int32 GetHashCode(IDictionary dictionary) => GetHashCodeCache.GetOrAdd(dictionary.GetType(), GetHashCodeFactory).Invoke(dictionary);
 
+		private static DictionaryEquals EqualsFactory(Type type) => Factory<DictionaryEquals>(type, DictionaryEqualsImpl, DictionaryEqualsGenericImplMethodInfo);
+		private static DictionaryGetHashCode GetHashCodeFactory(Type type) => Factory<DictionaryGetHashCode>(type, DictionaryHashCodeImpl, DictionaryHashCodeGenericImplMethodInfo);
+
 		private delegate Boolean DictionaryEquals(IDictionary first, IDictionary second);
 		private delegate Int32 DictionaryGetHashCode(IDictionary dictionary);
+
+		private static readonly MethodInfo DictionaryHashCodeGenericImplMethodInfo = new DictionaryGetHashCode(DictionaryHashCodeGenericImpl<Object, Object>).Method.GetGenericMethodDefinition();
+		private static readonly MethodInfo DictionaryEqualsGenericImplMethodInfo = new DictionaryEquals(DictionaryEqualsGenericImpl<Object, Object>).Method.GetGenericMethodDefinition();
 
 		private static readonly ConcurrentDictionary<Type, DictionaryEquals> EqualsCache = new ConcurrentDictionary<Type, DictionaryEquals>();
 		private static readonly ConcurrentDictionary<Type, DictionaryGetHashCode> GetHashCodeCache = new ConcurrentDictionary<Type, DictionaryGetHashCode>();
 
-		private static DictionaryEquals EqualsFactory(Type type) {
+		private static TDelegate Factory<TDelegate>(Type type, TDelegate impl, MethodInfo genericImpl) where TDelegate : class {
 			var genericTypeArguments = type.GenericTypeArguments;
 			if (genericTypeArguments.Length != 2)
-				return DictionaryEqualsImpl;
+				return impl;
 			var keyType = genericTypeArguments[0];
 			var valueType = genericTypeArguments[1];
-			return Common.GenerateIL<DictionaryEquals>((t, ilGenerator) => {
+			return Common.GenerateIL<TDelegate>((t, ilGenerator) => {
 				ilGenerator.Emit(OpCodes.Ldarg_0);
 				ilGenerator.Emit(OpCodes.Ldarg_1);
-				ilGenerator.Emit(OpCodes.Call, typeof(DictionaryComparer).GetMethod(nameof(DictionaryEqualsGenericImpl), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(keyType, valueType));
+				ilGenerator.Emit(OpCodes.Call, genericImpl.MakeGenericMethod(keyType, valueType));
 				ilGenerator.Emit(OpCodes.Ret);
 			}, type);
-		}
-
-		private static Boolean DictionaryEqualsGenericImpl<TKey, TValue>(IDictionary<TKey, TValue> first, IDictionary<TKey, TValue> second) {
-			if (first.Count != second.Count)
-				return false;
-			var firstKeys = first.Keys.OrderBy(x => x);
-			var secondKeys = second.Keys.OrderBy(x => x);
-			if (!firstKeys.SequenceEqual(secondKeys))
-				return false;
-			var comparer = EqualityComparer<TValue>.Default;
-			try {
-				foreach (var key in firstKeys)
-					if (!comparer.Equals(first[key], second[key]))
-						return false;
-			}
-			catch (KeyNotFoundException) {
-				return false;
-			}
-			return true;
 		}
 
 		private static Boolean DictionaryEqualsImpl(IDictionary first, IDictionary second) {
@@ -68,18 +55,25 @@ namespace Equality {
 			return true;
 		}
 
-		private static DictionaryGetHashCode GetHashCodeFactory(Type type) {
-			var genericTypeArguments = type.GenericTypeArguments;
-			if (genericTypeArguments.Length != 2)
-				return DictionaryHashCodeImpl;
-			var keyType = genericTypeArguments[0];
-			var valueType = genericTypeArguments[1];
-			return Common.GenerateIL<DictionaryGetHashCode>((t, ilGenerator) => {
-				ilGenerator.Emit(OpCodes.Ldarg_0);
-				ilGenerator.Emit(OpCodes.Ldarg_1);
-				ilGenerator.Emit(OpCodes.Call, typeof(DictionaryComparer).GetMethod(nameof(DictionaryHashCodeGenericImpl), BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(keyType, valueType));
-				ilGenerator.Emit(OpCodes.Ret);
-			}, type);
+		private static Boolean DictionaryEqualsGenericImpl<TKey, TValue>(IDictionary a, IDictionary b) {
+			var first = (IDictionary<TKey, TValue>) a;
+			var second = (IDictionary<TKey, TValue>) b;
+			if (first.Count != second.Count)
+				return false;
+			var firstKeys = first.Keys.OrderBy(x => x);
+			var secondKeys = second.Keys.OrderBy(x => x);
+			if (!firstKeys.SequenceEqual(secondKeys))
+				return false;
+			var comparer = EqualityComparer<TValue>.Default;
+			try {
+				foreach (var key in firstKeys)
+					if (!comparer.Equals(first[key], second[key]))
+						return false;
+			}
+			catch (KeyNotFoundException) {
+				return false;
+			}
+			return true;
 		}
 
 		private static Int32 DictionaryHashCodeImpl(IDictionary dictionary) {
@@ -96,7 +90,8 @@ namespace Equality {
 			return hashCode;
 		}
 
-		private static Int32 DictionaryHashCodeGenericImpl<TKey, TValue>(IDictionary<TKey, TValue> dictionary) {
+		private static Int32 DictionaryHashCodeGenericImpl<TKey, TValue>(IDictionary a) {
+			var dictionary = (IDictionary<TKey, TValue>) a;
 			Int32 hashCode = GetHashCodeInternals.Seed;
 			var keys = dictionary.Keys.OrderBy(x => x);
 			foreach (var key in keys) {
