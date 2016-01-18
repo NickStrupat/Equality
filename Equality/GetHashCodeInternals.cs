@@ -94,7 +94,6 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Stloc, instanceLocal);
 			}
 
-			var objectGetHashCode = typeof (Object).GetMethod(nameof(GetHashCode), Type.EmptyTypes);
 			var hashCode = ilGenerator.DeclareLocal(typeof (Int32));
 			ilGenerator.Emit(OpCodes.Ldc_I4, Seed);
 			ilGenerator.Emit(OpCodes.Stloc, hashCode);
@@ -104,7 +103,7 @@ namespace Equality {
 				var field = fields[i];
 				Action<ILGenerator> loadValueTypeMember = ilg => ilg.Emit(OpCodes.Ldflda, field);
 				Action<ILGenerator> loadReferenceTypeMember = ilg => ilg.Emit(OpCodes.Ldfld, field);
-				EmitMemberIL(ilGenerator, Prime, hashCode, loadInstanceOpCode, loadValueTypeMember, field, field.FieldType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, hashCode, loadInstanceOpCode, loadValueTypeMember, loadReferenceTypeMember, field, field.FieldType);
 			}
 
 			var localMap = new ConcurrentDictionary<Type, LocalBuilder>();
@@ -118,26 +117,26 @@ namespace Equality {
 					ilg.Emit(OpCodes.Ldloca, hold);
 				};
 				Action<ILGenerator> loadReferenceTypeMember = loadValueTypeMember;
-				EmitMemberIL(ilGenerator, Prime, hashCode, loadInstanceOpCode, loadValueTypeMember, property, property.PropertyType, loadReferenceTypeMember, objectGetHashCode);
+				EmitMemberIL(ilGenerator, hashCode, loadInstanceOpCode, loadValueTypeMember, loadReferenceTypeMember, property, property.PropertyType);
 			}
 
 			ilGenerator.Emit(OpCodes.Ldloc, hashCode);
 			ilGenerator.Emit(OpCodes.Ret);
 		}
 
+		private static readonly MethodInfo objectGetHashCode = new Func<Int32>(new Object().GetHashCode).Method;
+
 		private static void EmitMemberIL(ILGenerator ilGenerator,
-			                             Int32 prime,
 			                             LocalBuilder hashCode,
 			                             Action<ILGenerator> loadInstanceOpCode,
 			                             Action<ILGenerator> loadValueTypeMember,
-			                             MemberInfo memberInfo,
-			                             Type memberType,
 			                             Action<ILGenerator> loadReferenceTypeMember,
-			                             MethodInfo objectGetHashCode) {
+			                             MemberInfo memberInfo,
+			                             Type memberType) {
 			Type t;
 			if (memberType.IsValueType) {
 				ilGenerator.Emit(OpCodes.Ldloc, hashCode);
-				ilGenerator.Emit(OpCodes.Ldc_I4, prime);
+				ilGenerator.Emit(OpCodes.Ldc_I4, Prime);
 				ilGenerator.Emit(OpCodes.Mul);
 				loadInstanceOpCode(ilGenerator);
 				loadValueTypeMember(ilGenerator);
@@ -159,7 +158,7 @@ namespace Equality {
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
 				ilGenerator.Emit(OpCodes.Brfalse_S, label);
 				ilGenerator.Emit(OpCodes.Ldloc, hashCode);
-				ilGenerator.Emit(OpCodes.Ldc_I4, prime);
+				ilGenerator.Emit(OpCodes.Ldc_I4, Prime);
 				ilGenerator.Emit(OpCodes.Mul);
 				ilGenerator.Emit(OpCodes.Ldloc, hold);
 				if (memberInfo.ShouldGetStructural(memberType, out t))
