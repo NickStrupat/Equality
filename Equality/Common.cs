@@ -78,15 +78,24 @@ namespace Equality {
 		}
 
 #if DEBUG
-		private static readonly AssemblyName assemblyName = new AssemblyName("Debug.EqualityMethods");
-		private static readonly AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave, Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase).Replace(@"file:\", String.Empty));
-		private static readonly ModuleBuilder moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");
-		private static readonly TypeBuilder builder = moduleBuilder.DefineType("EqualityMethods", TypeAttributes.Public);
-		private static readonly AssemblySaver assemblySaver = new AssemblySaver();
+		private static readonly DynamicAssembly dynamicAssembly = new DynamicAssembly();
 
-		class AssemblySaver {
-			~AssemblySaver() {
-				var type = builder.CreateType();
+		private class DynamicAssembly : IDisposable {
+			private readonly AssemblyName assemblyName;
+			private readonly AssemblyBuilder assemblyBuilder;
+
+			public TypeBuilder TypeBuilder { get; }
+
+			public DynamicAssembly()
+			{
+				assemblyName = new AssemblyName("Debug.EqualityMethods");
+				assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(assemblyName, AssemblyBuilderAccess.RunAndSave, Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase).Replace(@"file:\", String.Empty));
+				var moduleBuilder = assemblyBuilder.DefineDynamicModule(assemblyName.Name, assemblyName.Name + ".dll");
+				TypeBuilder = moduleBuilder.DefineType("EqualityMethods", TypeAttributes.Public);
+			}
+
+			public void Dispose() {
+				var type = TypeBuilder.CreateType();
 				assemblyBuilder.Save(assemblyName.Name + ".dll");
 			}
 		}
@@ -99,7 +108,7 @@ namespace Equality {
 
 			ILGenerator ilGenerator;
 #if DEBUG
-			var methodBuilder = builder.DefineMethod($"{methodName}_{type.Name}", MethodAttributes.Public | MethodAttributes.Static, returnType, parameterTypes);
+			var methodBuilder = dynamicAssembly.TypeBuilder.DefineMethod($"{methodName}_{type.Name}", MethodAttributes.Public | MethodAttributes.Static, returnType, parameterTypes);
 
 			ilGenerator = methodBuilder.GetILGenerator();
 			ilGeneration(type, ilGenerator);
