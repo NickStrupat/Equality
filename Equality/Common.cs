@@ -94,6 +94,8 @@ namespace Equality {
 				TypeBuilder = moduleBuilder.DefineType("EqualityMethods", TypeAttributes.Public);
 			}
 
+			~DynamicAssembly() { Dispose(); }
+
 			public void Dispose() {
 				var type = TypeBuilder.CreateType();
 				assemblyBuilder.Save(assemblyName.Name + ".dll");
