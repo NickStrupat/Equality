@@ -5,65 +5,71 @@ The last .NET equality solution you'll ever need. Automatically produces equalit
 
 Given the following types:
 
-	class Foo {
-		public String Text { get; set; }
-		public Int32 Count { get; set; }
-		public Bar Bar { get; set; }
+```csharp
+class Foo {
+	public String Text { get; set; }
+	public Int32 Count { get; set; }
+	public Bar Bar { get; set; }
 
-		public override Boolean Equals(Object obj) => Class.Equals(this, obj);
-		public override Int32 GetHashCode() => Class.GetHashCode(this);
-	}
+	public override Boolean Equals(Object obj) => Class.Equals(this, obj);
+	public override Int32 GetHashCode() => Class.GetHashCode(this);
+}
 
-	struct Bar : IEquatable<Bar> {
-		public Int32 Number;
-		public Boolean Flag;
+struct Bar : IEquatable<Bar> {
+	public Int32 Number;
+	public Boolean Flag;
 
-		public Boolean Equals(Bar other) => Struct.Equals(ref this, ref other);
-		public override Boolean Equals(Object obj) => Struct.Equals(ref this, obj);
-		public override Int32 GetHashCode() => Struct.GetHashCode(ref this);
-	}
+	public Boolean Equals(Bar other) => Struct.Equals(ref this, ref other);
+	public override Boolean Equals(Object obj) => Struct.Equals(ref this, obj);
+	public override Int32 GetHashCode() => Struct.GetHashCode(ref this);
+}
+```
 
 The following Equals and GetHashCode implementations are generated, cached, and called at runtime (these are decompiled straight from the assembly which saves the dynamic methods to disk in DEBUG mode)
 
 ```csharp
-	public static bool GetClassEqualsFunc_Foo(Foo foo1, Foo foo2) {
-		string str = foo1.<Text>k__BackingField;
-		string str2 = foo2.<Text>k__BackingField;
-		if (str == null)
-			if (str2 != null)
-				return false;
-		else if (!str.Equals(str2))
+public static bool GetClassEqualsFunc_Foo(Foo foo1, Foo foo2) {
+	string str = foo1.<Text>k__BackingField;
+	string str2 = foo2.<Text>k__BackingField;
+	if (str == null)
+		if (str2 != null)
 			return false;
-		if (foo1.<Count>k__BackingField != foo2.<Count>k__BackingField)
-			return false;
-		if (!foo1.<Bar>k__BackingField.Equals(foo2.<Bar>k__BackingField))
-			return false;
-		return true;
-	}
+	else if (!str.Equals(str2))
+		return false;
+	if (foo1.<Count>k__BackingField != foo2.<Count>k__BackingField)
+		return false;
+	if (!foo1.<Bar>k__BackingField.Equals(foo2.<Bar>k__BackingField))
+		return false;
+	return true;
+}
 
-	public static bool GetStructEqualsFunc_Bar(ref Bar barRef1, ref Bar barRef2) {
-		if (barRef1.Number != barRef2.Number)
-			return false;
-		if (barRef1.Flag != barRef2.Flag)
-			return false;
-		return true;
-	}
+public static bool GetStructEqualsFunc_Bar(ref Bar barRef1, ref Bar barRef2) {
+	if (barRef1.Number != barRef2.Number)
+		return false;
+	if (barRef1.Flag != barRef2.Flag)
+		return false;
+	return true;
+}
 
-	public static int GetClassHashCodeFunc_Foo(Foo foo1) {
-		int num = 0x51ed270b;
-		string str = foo1.<Text>k__BackingField;
-		if (str != null)
-			num = (num * -1521134295) + str.GetHashCode();
-		num = (num * -1521134295) + foo1.<Count>k__BackingField.GetHashCode();
-		return ((num * -1521134295) + foo1.<Bar>k__BackingField.GetHashCode());
-	}
+public static int GetClassHashCodeFunc_Foo(Foo foo1) {
+	int num = 0x51ed270b;
+	string str = foo1.<Text>k__BackingField;
+	if (str != null)
+		num = (num * -1521134295) + str.GetHashCode();
+	num = (num * -1521134295) + foo1.<Count>k__BackingField.GetHashCode();
+	return ((num * -1521134295) + foo1.<Bar>k__BackingField.GetHashCode());
+}
 
-	public static int GetStructHashCodeFunc_Bar(ref Bar barRef1) {
-		int num = 0x51ed270b;
-		num = (num * -1521134295) + barRef1.Number.GetHashCode();
-		return ((num * -1521134295) + barRef1.Flag.GetHashCode());
-	}
+public static int GetStructHashCodeFunc_Bar(ref Bar barRef1) {
+	int num = 0x51ed270b;
+	num = (num * -1521134295) + barRef1.Number.GetHashCode();
+	return ((num * -1521134295) + barRef1.Flag.GetHashCode());
+}
 ```
+
+NOTE: `Class.Equals/GetHashCode` and `Struct.Equals/GetHashCode` both do the proper null reference checks, `ReferenceEquals` calls and type checking before going into the member-by-member comparison
+
+IEnumerables can be compared by instance or by structure. Instance comparison simply calls `.Equals()` on the object, whereas structural comparison will compare elements of simple IEnumerables (Arrays, ILists), keys and values of dictionaries, call `StructuralComparisons.StructuralEqualityComparer` if the type implements it, and will fall back to `SequenceEquals` if those specializations aren't available.
 
 ###TODO
 
