@@ -3,6 +3,8 @@ The last .NET equality solution you'll ever need. Automatically produces equalit
 
 ###Usage
 
+Members can be excluded/included from the equality comparison methods by annotating the members with the `[MemberEquality]` attribute. Alternatively, members can be excluded by default and included explicitly by combining `[MemberEqualityDefaults]` with `[MemberEquality]`. Collection comparison can be specified with those attributes as well (more on that below the code samples).
+
 Given the following types:
 
 ```csharp
@@ -67,9 +69,9 @@ public static int GetStructHashCodeFunc_Bar(ref Bar barRef1) {
 }
 ```
 
-NOTE: `Class.Equals/GetHashCode` and `Struct.Equals/GetHashCode` both do the proper null reference checks, `ReferenceEquals` calls and type checking before going into the member-by-member comparison
+NOTE: `Class.Equals/GetHashCode` and `Struct.Equals/GetHashCode` both do the proper null reference checks, `ReferenceEquals` short-cut calls and type checking before going into the member-by-member comparison. We even have a **super special** `Struct.ReferenceEquals<T>(ref T x, ref T y) for all your optimization dreams!
 
-IEnumerables can be compared by instance or by structure. Instance comparison simply calls `.Equals()` on the object, whereas structural comparison will compare elements of simple IEnumerables (Arrays, ILists), keys and values of dictionaries, call `StructuralComparisons.StructuralEqualityComparer` if the type implements it, and will fall back to `SequenceEquals` if those specializations aren't available.
+`IEnumerable`s can be compared by instance or by structure. Instance comparison simply calls `.Equals()` on the object, whereas structural comparison will compare elements of the `IEnumerables`. `IEnumerable`s (`Array`s and `IList`s) are compared by element, `IDictionary`s are compared by keys then values, `IStructuralEquatable`s are compared by calling `StructuralComparisons.StructuralEqualityComparer`, and all other `IEnumerable`s will fall back to `SequenceEquals` if those specializations aren't available.
 
 ###TODO
 
