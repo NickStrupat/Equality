@@ -1,6 +1,10 @@
 # Equality
 The last .NET equality solution you'll ever need. Automatically produces equality comparison and hash-code generation for any type by emitting IL based on your type. Emitted code is cached and specialized for struct and class types. Specify fields and auto-properties to ignore, as well as properties you want to include by applying attributes.
 
+NuGet package listed on nuget.org at https://www.nuget.org/packages/Equality/
+
+[![NuGet Status](http://img.shields.io/nuget/v/Equality.svg?style=flat)](https://www.nuget.org/packages/Equality/)
+
 ###Usage
 
 Members can be excluded/included from the equality comparison methods by annotating the members with the `[MemberEquality]` attribute. Alternatively, members can be excluded by default and included explicitly by combining `[MemberEqualityDefaults]` with `[MemberEquality]`. Collection comparison can be specified with those attributes as well (more on that below the code samples).
