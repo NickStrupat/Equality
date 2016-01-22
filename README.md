@@ -25,6 +25,7 @@ Given the following types:
 
 The following Equals and GetHashCode implementations are generated, cached, and called at runtime (these are decompiled straight from the assembly which saves the dynamic methods to disk in DEBUG mode)
 
+```csharp
 	public static bool GetClassEqualsFunc_Foo(Foo foo1, Foo foo2) {
 		string str = foo1.<Text>k__BackingField;
 		string str2 = foo2.<Text>k__BackingField;
@@ -62,7 +63,7 @@ The following Equals and GetHashCode implementations are generated, cached, and 
 		num = (num * -1521134295) + barRef1.Number.GetHashCode();
 		return ((num * -1521134295) + barRef1.Flag.GetHashCode());
 	}
-
+```
 
 ###TODO
 
