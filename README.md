@@ -35,9 +35,10 @@ The following Equals and GetHashCode implementations are generated, cached, and 
 public static bool GetClassEqualsFunc_Foo(Foo foo1, Foo foo2) {
 	string str = foo1.<Text>k__BackingField;
 	string str2 = foo2.<Text>k__BackingField;
-	if (str == null)
+	if (str == null) {
 		if (str2 != null)
 			return false;
+	}
 	else if (!str.Equals(str2))
 		return false;
 	if (foo1.<Count>k__BackingField != foo2.<Count>k__BackingField)
