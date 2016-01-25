@@ -12,7 +12,7 @@ namespace Equality {
 		private static Int32 GetHashCodeInternal<T>(T x, Type type) where T : class {
 			if (type == typeof (T))
 				return GetHashCodeInternals.StaticClassCache<T>.Func.Invoke(x);
-			return GetHashCodeInternals.GetDynamicClassEquals(type).Invoke(x);
+			return GetHashCodeInternals.GetDynamicClassHashCode(type).Invoke(x);
 		}
 
 		private static Boolean EqualsInternal<T>(T x, T y) where T : class {

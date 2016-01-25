@@ -22,7 +22,7 @@ namespace Equality {
 			public static readonly GetClassHashCode<T> Func = GetClassHashCodeFunc<T>(typeof(T));
 		}
 
-		internal static GetClassHashCode<Object> GetDynamicClassEquals(Type type) => DynamicCache.GetOrAdd(type, GetClassHashCodeFunc<Object>);
+		internal static GetClassHashCode<Object> GetDynamicClassHashCode(Type type) => DynamicCache.GetOrAdd(type, GetClassHashCodeFunc<Object>);
 
 		private static GetStructHashCode<T> GetStructHashCodeFunc<T>(Type type) where T : struct => Common.GenerateIL<GetStructHashCode<T>>(GenerateIL<T>, type);
 
